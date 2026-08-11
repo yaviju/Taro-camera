@@ -3,6 +3,7 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Taro AI</title>
+
   <style>
     body {
       margin: 0;
@@ -44,76 +45,27 @@
 
 <
 
-<button id="startButton">ВКЛЮЧИТЬ КАМЕРУ</button>
+<button id="startButton">
+  ВКЛЮЧИТЬ КАМЕРУ
+</button>
 
 <button id="switchButton" style="display:none;">
   🔄 СМЕНИТЬ КАМЕРУ
-</button>
-
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Taro AI</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 20px;
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
-
-    video {
-      width: 100%;
-      max-width: 600px;
-      border-radius: 12px;
-      background: black;
-    }
-
-    button {
-      margin: 10px 5px;
-      padding: 16px 20px;
-      font-size: 18px;
-      border: 0;
-      border-radius: 10px;
-    }
-
-    #result {
-      margin-top: 20px;
-      font-size: 20px;
-      white-space: pre-wrap;
-    }
-  </style>
-</head>
-
-<body>
-
-<h2>🃏 Taro AI</h2>
-
-<video id="video" autoplay playsinline muted></video>
-
-<
-
-<button id="startButton">ВКЛЮЧИТЬ КАМЕРУ</button>
-
-<button id="switchButton" style="display:none;">
-  🔄 СМЕНИТЬ КАМЕРУ
-</button>
-
-<button id="photoButton" style="display:none;">
-  🃏 РАСПОЗНАТЬ КАРТУ
 </button>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
-<div id="result">Камера выключена</div>
+<div id="result">
+  Камера выключена
+</div>
 
 <script>
 
 let stream = null;
 let camera = "environment";
+
+let analyzing = false;
+let lastCardTime = 0;
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -121,7 +73,10 @@ const result = document.getElementById("result");
 
 const startButton = document.getElementById("startButton");
 const switchButton = document.getElementById("switchButton");
-const photoButton = document.getElementById("photoButton");
+
+/* =========================
+   ЗАПУСК КАМЕРЫ
+========================= */
 
 async function startCamera() {
 
@@ -133,7 +88,13 @@ async function startCamera() {
 
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: camera
+        facingMode: camera,
+        width: {
+          ideal: 1280
+        },
+        height: {
+          ideal: 720
+        }
       },
       audio: false
     });
@@ -144,37 +105,107 @@ async function startCamera() {
 
     startButton.style.display = "none";
     switchButton.style.display = "inline-block";
-    photoButton.style.display = "inline-block";
 
-    result.innerText = "Камера включена. Покажи одну карту.";
+    result.innerText =
+      "📷 Камера включена.\nПоложи карту в кадр.";
+
+    /*
+      Начинаем автоматическую проверку
+    */
+
+    startAutoScan();
 
   } catch (error) {
 
     result.innerText =
-      "Ошибка камеры: " +
-      error.name + ": " +
+      "Ошибка камеры:\n" +
+      error.name +
+      ": " +
       error.message;
   }
 }
 
-startButton.addEventListener("click", startCamera);
+/* =========================
+   КНОПКА СТАРТА
+========================= */
 
-switchButton.addEventListener("click", async function() {
+startButton.addEventListener(
+  "click",
+  startCamera
+);
 
-  camera = camera === "environment" ? "user" : "environment";
+/* =========================
+   СМЕНА КАМЕРЫ
+========================= */
 
-  await startCamera();
+switchButton.addEventListener(
+  "click",
+  async function() {
 
-});
+    camera =
+      camera === "environment"
+        ? "user"
+        : "environment";
 
-photoButton.addEventListener("click", function() {
+    await startCamera();
 
-  result.innerText = "📸 Делаю снимок...";
+  }
+);
 
-  if (!video.videoWidth) {
-    result.innerText = "Камера ещё не готова.";
+/* =========================
+   АВТОМАТИЧЕСКОЕ СКАНИРОВАНИЕ
+========================= */
+
+function startAutoScan() {
+
+  setInterval(async function() {
+
+    if (!video.videoWidth) {
+      return;
+    }
+
+    /*
+      Если сейчас уже идёт распознавание —
+      ничего нового не делаем.
+    */
+
+    if (analyzing) {
+      return;
+    }
+
+    /*
+      Небольшая защита от повторного
+      распознавания одной и той же карты.
+    */
+
+    if (
+      Date.now() - lastCardTime < 4000
+    ) {
+      return;
+    }
+
+    /*
+      Пока просто делаем снимок кадра.
+      Gemini на сервере определит,
+      есть ли там карта.
+    */
+
+    await analyzeCurrentFrame();
+
+  }, 1200);
+}
+
+/* =========================
+   АНАЛИЗ КАДРА
+========================= */
+
+async function analyzeCurrentFrame() {
+
+  if (analyzing) {
     return;
   }
+
+  analyzing = true;
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -189,189 +220,111 @@ photoButton.addEventListener("click", function() {
     canvas.height
   );
 
-  const image = canvas.toDataURL("image/jpeg", 0.8);
+  const image =
+    canvas.toDataURL(
+      "image/jpeg",
+      0.8
+    );
 
-  result.innerText = "⏳ Снимок сделан. Отправляю карту на распознавание...";
+  result.innerText =
+    "🔎 Смотрю на карту...";
 
-  fetch(
-    "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify({
-        image: image
-      })
-    }
-  )
-  .then(response => response.text())
-  .then(text => {
+  try {
+
+    const response = await fetch(
+      "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
+
+        body: JSON.stringify({
+          image: image
+        })
+      }
+    );
+
+    const text =
+      await response.text();
+
+    let data;
 
     try {
 
-      const data = JSON.parse(text);
-
-      if (data.success) {
-        result.innerText =
-          "🃏 Карта:\n\n" + data.result;
-      } else {
-        result.innerText =
-          "Ошибка:\n" + data.error;
-      }
+      data = JSON.parse(text);
 
     } catch (error) {
 
       result.innerText =
-        "Ответ сервера:\n" + text;
+        "Ответ сервера:\n" +
+        text;
+
+      analyzing = false;
+
+      return;
     }
 
-  })
-  .catch(error => {
+    if (data.success) {
 
-    result.innerText =
-      "Ошибка соединения:\n" + error.message;
+      /*
+        Gemini нашёл карту
+      */
 
-  });
+      if (
+        data.result &&
+        data.result !== "NO_CARD"
+      ) {
 
-});
+        lastCardTime = Date.now();
 
-</script>
+        result.innerText =
+          "🃏 КАРТА:\n\n" +
+          data.result;
 
-</body>
-</html>
+        /*
+          Ждём 4 секунды,
+          чтобы одна карта не
+          распознавалась много раз.
+        */
 
-<canvas id="canvas" style="display:none;"></canvas>
+        setTimeout(function() {
 
-<div id="result">Камера выключена</div>
+          if (!analyzing) {
+            result.innerText =
+              "📷 Готов к следующей карте.";
+          }
 
-<script>
+        }, 4000);
 
-let stream = null;
-let camera = "environment";
+      }
 
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const result = document.getElementById("result");
+    } else {
 
-const startButton = document.getElementById("startButton");
-const switchButton = document.getElementById("switchButton");
-const photoButton = document.getElementById("photoButton");
+      /*
+        Если карты нет,
+        ничего страшного.
+      */
 
-async function startCamera() {
+      result.innerText =
+        "📷 Жду карту...";
 
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
-
-  try {
-
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: camera
-      },
-      audio: false
-    });
-
-    video.srcObject = stream;
-
-    await video.play();
-
-    startButton.style.display = "none";
-    switchButton.style.display = "inline-block";
-    photoButton.style.display = "inline-block";
-
-    result.innerText = "Камера включена. Покажи одну карту.";
+    }
 
   } catch (error) {
 
     result.innerText =
-      "Ошибка камеры: " +
-      error.name + ": " +
+      "Ошибка соединения:\n" +
       error.message;
+
   }
+
+  analyzing = false;
 }
-
-startButton.addEventListener("click", startCamera);
-
-switchButton.addEventListener("click", async function() {
-
-  camera = camera === "environment" ? "user" : "environment";
-
-  await startCamera();
-
-});
-
-photoButton.addEventListener("click", function() {
-
-  result.innerText = "📸 Делаю снимок...";
-
-  if (!video.videoWidth) {
-    result.innerText = "Камера ещё не готова.";
-    return;
-  }
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  const ctx = canvas.getContext("2d");
-
-  ctx.drawImage(
-    video,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-  const image = canvas.toDataURL("image/jpeg", 0.8);
-
-  result.innerText = "⏳ Снимок сделан. Отправляю карту на распознавание...";
-
-  fetch(
-    "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify({
-        image: image
-      })
-    }
-  )
-  .then(response => response.text())
-  .then(text => {
-
-    try {
-
-      const data = JSON.parse(text);
-
-      if (data.success) {
-        result.innerText =
-          "🃏 Карта:\n\n" + data.result;
-      } else {
-        result.innerText =
-          "Ошибка:\n" + data.error;
-      }
-
-    } catch (error) {
-
-      result.innerText =
-        "Ответ сервера:\n" + text;
-    }
-
-  })
-  .catch(error => {
-
-    result.innerText =
-      "Ошибка соединения:\n" + error.message;
-
-  });
-
-});
 
 </script>
 
 </body>
-</html>
+</html>.string
