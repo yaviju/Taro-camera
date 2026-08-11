@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taro AI Camera</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h2 {
+      margin-top: 0;
+    }
+
+    video {
+      width: 100%;
+      max-width: 600px;
+      border-radius: 12px;
+      background: black;
+    }
+
+    button {
+      margin: 12px 5px;
+      padding: 16px 20px;
+      font-size: 18px;
+      border: 0;
+      border-radius: 10px;
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 20px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🃏 Taro AI</h2>
+
+<video id="video" autoplay playsinline muted></video>
+
+<
+
+<button id="startButton">
+  ВКЛЮЧИТЬ КАМЕРУ
+</button>
+
+<button id="photoButton" style="display:none;">
+  РАСПОЗНАТЬ КАРТУ
+</button>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<div id="result">
+  Камера пока выключена
+</div>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const result = document.getElementById("result");
+const startButton = document.getElementById("startButton");
+const photoButton = document.getElementById("photoButton");
+
+let stream = null;
+
+startButton.onclick = async function() {
+
+  result.innerText = "Запрашиваю камеру...";
+
+  try {
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: {
+          ideal: "environment"
+        }
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+
+    await video.play();
+
+    startButton.style.display = "none";
+    photoButton.style.display = "inline-block";
+
+    result.innerText =
+      "Камера включена.\nПокажи одну карту.";
+
+  } catch (error) {
+
+    result.innerText =
+      "Ошибка камеры: " +
+      error.name +
+      ": " +
+      error.message;
+
+  }
+};
+
+photoButton.onclick = function() {
+
+  if (!video.videoWidth) {
+    result.innerText = "Камера ещё не готова.";
+    return;
+  }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  const image = canvas.toDataURL(
+    "image/jpeg",
+    0.8
+  );
+
+  result.innerText =
+    "Кадр карты получен.";
+
+};
+
+</script>
+
+</body>
+</html>
