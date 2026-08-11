@@ -26,16 +26,16 @@
     }
 
     button {
-      margin: 12px 5px;
-      padding: 16px 20px;
-      font-size: 18px;
+      margin: 10px 5px;
+      padding: 15px 20px;
+      font-size: 17px;
       border: 0;
       border-radius: 10px;
     }
 
     #result {
       margin-top: 20px;
-      font-size: 20px;
+      font-size: 19px;
       white-space: pre-wrap;
     }
   </style>
@@ -53,6 +53,10 @@
   ВКЛЮЧИТЬ КАМЕРУ
 </button>
 
+<button id="switchButton" style="display:none;">
+  🔄 СМЕНИТЬ КАМЕРУ
+</button>
+
 <button id="photoButton" style="display:none;">
   РАСПОЗНАТЬ КАРТУ
 </button>
@@ -68,21 +72,30 @@
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const result = document.getElementById("result");
+
 const startButton = document.getElementById("startButton");
+const switchButton = document.getElementById("switchButton");
 const photoButton = document.getElementById("photoButton");
 
 let stream = null;
+let currentCamera = "environment";
 
-startButton.onclick = async function() {
+async function startCamera() {
 
-  result.innerText = "Запрашиваю камеру...";
+  if (stream) {
+    stream.getTracks().forEach(function(track) {
+      track.stop();
+    });
+  }
+
+  result.innerText = "Запускаю камеру...";
 
   try {
 
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: {
-          ideal: "environment"
+          ideal: currentCamera
         }
       },
       audio: false
@@ -93,10 +106,16 @@ startButton.onclick = async function() {
     await video.play();
 
     startButton.style.display = "none";
+    switchButton.style.display = "inline-block";
     photoButton.style.display = "inline-block";
 
-    result.innerText =
-      "Камера включена.\nПокажи одну карту.";
+    if (currentCamera === "environment") {
+      result.innerText =
+        "Основная камера включена.\nПокажи карту.";
+    } else {
+      result.innerText =
+        "Селфи-камера включена.\nПокажи карту.";
+    }
 
   } catch (error) {
 
@@ -107,6 +126,21 @@ startButton.onclick = async function() {
       error.message;
 
   }
+}
+
+startButton.onclick = function() {
+  startCamera();
+};
+
+switchButton.onclick = async function() {
+
+  if (currentCamera === "environment") {
+    currentCamera = "user";
+  } else {
+    currentCamera = "environment";
+  }
+
+  await startCamera();
 };
 
 photoButton.onclick = function() {
