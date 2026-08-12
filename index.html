@@ -104,26 +104,26 @@ button {
 
 <div id="cameraBox">
 
-  <h2>🃏 Taro AI</h2>
+<h2>🃏 Taro AI</h2>
 
-  <video
-    id="video"
-    autoplay
-    playsinline
-    muted>
-  </video>
+<video
+  id="video"
+  autoplay
+  playsinline
+  muted>
+</video>
 
-  <div id="controls">
+<div id="controls">
 
-    <button id="switchButton">
-      🔄 СМЕНИТЬ КАМЕРУ
-    </button>
+<button id="switchButton">
+🔄 СМЕНИТЬ КАМЕРУ
+</button>
 
-  </div>
+</div>
 
-  <div id="result">
-    📷 Запускаю камеру...
-  </div>
+<div id="result">
+📷 Запускаю камеру...
+</div>
 
 </div>
 
@@ -135,10 +135,6 @@ button {
 
 <script>
 
-/* =================================
-   ОСНОВНЫЕ ПЕРЕМЕННЫЕ
-================================= */
-
 let stream = null;
 
 let camera = "environment";
@@ -149,48 +145,76 @@ let scanTimer = null;
 
 
 /*
-   Последняя подтверждённая карта.
-   
-   Именно с ней сравниваем
-   следующую найденную карту.
+========================================
+СОСТОЯНИЕ РАСПОЗНАВАНИЯ
+========================================
 */
+
+/*
+Последняя карта, которую мы уже показали.
+*/
+
 let currentCard = "";
 
 
 /*
-   Кандидат на новую карту.
-   
-   Используется для защиты
-   от случайных распознаваний.
+Флаг:
+карта сейчас считается находящейся
+в кадре.
 */
+
+let cardIsPresent = false;
+
+
+/*
+Сколько раз подряд Gemini должна
+подтвердить одну и ту же карту.
+
+Это защищает от случайных распознаваний.
+*/
+
 let candidateCard = "";
 
 let candidateCount = 0;
 
 
 /*
-   Сколько одинаковых распознаваний
-   нужно получить подряд.
+Сколько раз подряд должна появиться
+новая карта, чтобы мы её приняли.
+
+2 проверки подряд — достаточно быстро,
+но значительно стабильнее.
 */
+
 const REQUIRED_CONFIRMATIONS = 2;
 
 
+/*
+URL ТВОЕГО APPS SCRIPT
+*/
+
+const APPS_SCRIPT_URL =
+"https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec";
+
+
 const video =
-  document.getElementById("video");
+document.getElementById("video");
 
 const canvas =
-  document.getElementById("canvas");
+document.getElementById("canvas");
 
 const result =
-  document.getElementById("result");
+document.getElementById("result");
 
 const switchButton =
-  document.getElementById("switchButton");
+document.getElementById("switchButton");
 
 
-/* =================================
-   ЗАПУСК КАМЕРЫ
-================================= */
+/*
+========================================
+ЗАПУСК КАМЕРЫ
+========================================
+*/
 
 async function startCamera() {
 
@@ -249,6 +273,20 @@ async function startCamera() {
     await video.play();
 
 
+    /*
+    При смене камеры начинаем
+    с чистого состояния.
+    */
+
+    currentCard = "";
+
+    cardIsPresent = false;
+
+    candidateCard = "";
+
+    candidateCount = 0;
+
+
     result.innerText =
       "📷 Камера включена.\nПоложи карту в кадр.";
 
@@ -271,9 +309,11 @@ async function startCamera() {
 }
 
 
-/* =================================
-   СМЕНА КАМЕРЫ
-================================= */
+/*
+========================================
+СМЕНА КАМЕРЫ
+========================================
+*/
 
 switchButton.addEventListener(
   "click",
@@ -284,28 +324,17 @@ switchButton.addEventListener(
         ? "user"
         : "environment";
 
-
-    /*
-       При смене камеры
-       начинаем поиск заново.
-    */
-
-    currentCard = "";
-
-    candidateCard = "";
-
-    candidateCount = 0;
-
-
     await startCamera();
 
   }
 );
 
 
-/* =================================
-   АВТОСКАНИРОВАНИЕ
-================================= */
+/*
+========================================
+АВТОМАТИЧЕСКОЕ СКАНИРОВАНИЕ
+========================================
+*/
 
 function startAutoScan() {
 
@@ -339,9 +368,11 @@ function startAutoScan() {
 }
 
 
-/* =================================
-   АНАЛИЗ ТЕКУЩЕГО КАДРА
-================================= */
+/*
+========================================
+АНАЛИЗ ТЕКУЩЕГО КАДРА
+========================================
+*/
 
 async function analyzeCurrentFrame() {
 
@@ -381,28 +412,19 @@ async function analyzeCurrentFrame() {
 
 
   /*
-     Если карты ещё никогда
-     не было — показываем поиск.
+  Если карта уже была найдена,
+  не пишем постоянно
+  "Распознаю карту".
 
-     Если ответ уже есть —
-     НЕ меняем его.
+  Оставляем предыдущий ответ.
   */
-
-  if (!currentCard) {
-
-    result.innerText =
-      "🔎 Ищу карту...";
-
-  }
 
 
   try {
 
     const response =
       await fetch(
-
-        "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
-
+        APPS_SCRIPT_URL,
         {
           method: "POST",
 
@@ -414,9 +436,7 @@ async function analyzeCurrentFrame() {
           body: JSON.stringify({
             image: image
           })
-
         }
-
       );
 
 
@@ -434,29 +454,22 @@ async function analyzeCurrentFrame() {
 
     } catch (error) {
 
-      /*
-         Ошибку сервера показываем
-         только если ещё нет карты.
-      */
-
-      if (!currentCard) {
-
-        result.innerText =
-          "Ответ сервера:\n" +
-          text;
-
-      }
+      console.log(
+        "Сервер вернул:",
+        text
+      );
 
       analyzing = false;
 
       return;
-
     }
 
 
-    /* =================================
-       КАРТЫ НЕТ
-    ================================= */
+    /*
+    ====================================
+    КАРТЫ НЕТ
+    ====================================
+    */
 
     if (
       !data.success ||
@@ -465,80 +478,100 @@ async function analyzeCurrentFrame() {
     ) {
 
       /*
-         ВАЖНО:
+      Очень важно:
 
-         Если карту убрали,
-         мы НИЧЕГО НЕ МЕНЯЕМ.
+      если карту убрали,
+      мы НЕ удаляем ответ.
 
-         Текущий ответ остаётся
-         на экране.
+      Просто запоминаем,
+      что карты сейчас нет.
       */
+
+      cardIsPresent = false;
 
       candidateCard = "";
 
       candidateCount = 0;
 
+
       analyzing = false;
 
       return;
-
     }
 
 
-    /* =================================
-       ПОЛУЧИЛИ НАЗВАНИЕ КАРТЫ
-    ================================= */
+    /*
+    ====================================
+    GEMINI НАШЁЛ КАРТУ
+    ====================================
+    */
 
-    const detectedCard =
+    let detectedCard =
       data.result.trim();
 
 
     /*
-       Если Gemini вернул ту же карту,
-       которая уже показана,
-       абсолютно ничего не делаем.
+    ====================================
+    ЕСЛИ ЭТА ЖЕ КАРТА
+    ====================================
     */
 
     if (
-      currentCard &&
       detectedCard === currentCard
     ) {
+
+      /*
+      Карта всё ещё та же.
+
+      Ничего не меняем.
+      Ответ остаётся на экране.
+      */
+
+      cardIsPresent = true;
 
       candidateCard = "";
 
       candidateCount = 0;
 
+
       analyzing = false;
 
       return;
-
     }
 
 
-    /* =================================
-       НАЧАЛО ПОИСКА НОВОЙ КАРТЫ
-    ================================= */
+    /*
+    ====================================
+    НАЙДЕНА НОВАЯ КАРТА
+    ====================================
+    */
+
+
+    /*
+    Если это первая проверка
+    новой карты.
+    */
 
     if (
-      candidateCard === detectedCard
+      candidateCard !== detectedCard
     ) {
-
-      candidateCount++;
-
-    } else {
 
       candidateCard =
         detectedCard;
 
       candidateCount = 1;
 
+    } else {
+
+      candidateCount++;
+
     }
 
 
     /*
-       Пока новая карта определилась
-       только один раз — ничего
-       на экране не меняем.
+    Пока не подтвердили карту
+    два раза подряд —
+    ничего не показываем.
     */
 
     if (
@@ -549,17 +582,19 @@ async function analyzeCurrentFrame() {
       analyzing = false;
 
       return;
-
     }
 
 
-    /* =================================
-       НОВАЯ КАРТА ПОДТВЕРЖДЕНА
-    ================================= */
+    /*
+    ====================================
+    НОВАЯ КАРТА ПОДТВЕРЖДЕНА
+    ====================================
+    */
 
     currentCard =
       detectedCard;
 
+    cardIsPresent = true;
 
     candidateCard = "";
 
@@ -567,43 +602,38 @@ async function analyzeCurrentFrame() {
 
 
     /*
-       Показываем новый ответ.
+    Показываем новый ответ.
     */
 
     result.innerText =
-      "🃏 " + currentCard;
+      "🃏 " + detectedCard;
 
 
-    analyzing = false;
+    console.log(
+      "НОВАЯ КАРТА:",
+      detectedCard
+    );
 
 
   } catch (error) {
 
-    /*
-       Если интернет временно пропал,
-       старый ответ НЕ стираем.
-    */
-
-    if (!currentCard) {
-
-      result.innerText =
-        "Ошибка соединения:\n" +
-        error.message;
-
-    }
-
-    console.log(error);
-
-    analyzing = false;
+    console.log(
+      "Ошибка соединения:",
+      error
+    );
 
   }
 
+
+  analyzing = false;
 }
 
 
-/* =================================
-   АВТОЗАПУСК КАМЕРЫ
-================================= */
+/*
+========================================
+АВТОЗАПУСК КАМЕРЫ
+========================================
+*/
 
 window.addEventListener(
   "load",
