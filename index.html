@@ -132,7 +132,6 @@
     style="display:none;">
   </canvas>
 
-
 <script>
 
 let stream = null;
@@ -142,8 +141,6 @@ let camera = "environment";
 let analyzing = false;
 
 let lastCard = "";
-
-let waitingForNewCard = false;
 
 let scanTimer = null;
 
@@ -178,19 +175,15 @@ async function startCamera() {
     stream = null;
   }
 
-
   if (scanTimer) {
 
     clearInterval(scanTimer);
 
     scanTimer = null;
-
   }
-
 
   result.innerText =
     "📷 Запускаю камеру...";
-
 
   try {
 
@@ -217,19 +210,14 @@ async function startCamera() {
 
       });
 
-
     video.srcObject = stream;
 
-
     await video.play();
-
 
     result.innerText =
       "📷 Камера включена.\nПоложи карту в кадр.";
 
-
     startAutoScan();
-
 
   } catch (error) {
 
@@ -240,9 +228,7 @@ async function startCamera() {
       error.message;
 
     console.log(error);
-
   }
-
 }
 
 
@@ -258,6 +244,13 @@ switchButton.addEventListener(
       camera === "environment"
         ? "user"
         : "environment";
+
+    /*
+     * При смене камеры
+     * разрешаем новое распознавание.
+     */
+
+    lastCard = "";
 
     await startCamera();
 
@@ -277,7 +270,6 @@ function startAutoScan() {
 
   }
 
-
   scanTimer =
     setInterval(
       function() {
@@ -286,25 +278,15 @@ function startAutoScan() {
           return;
         }
 
-
         if (analyzing) {
           return;
         }
 
-
-        if (
-          Date.now() - lastCardTime < 4000
-        ) {
-          return;
-        }
-
-
         analyzeCurrentFrame();
 
       },
-      1500
+      1800
     );
-
 }
 
 
@@ -314,7 +296,7 @@ function startAutoScan() {
 
 async function analyzeCurrentFrame() {
 
-  if (analyzing || waitingForNewCard) {
+  if (analyzing) {
     return;
   }
 
@@ -323,7 +305,8 @@ async function analyzeCurrentFrame() {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  const ctx = canvas.getContext("2d");
+  const ctx =
+    canvas.getContext("2d");
 
   ctx.drawImage(
     video,
@@ -339,26 +322,24 @@ async function analyzeCurrentFrame() {
       0.8
     );
 
-  result.innerText =
-    "🔎 Распознаю карту...";
-
   try {
 
-    const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
-      {
-        method: "POST",
+    const response =
+      await fetch(
+        "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type":
-            "text/plain;charset=utf-8"
-        },
+          headers: {
+            "Content-Type":
+              "text/plain;charset=utf-8"
+          },
 
-        body: JSON.stringify({
-          image: image
-        })
-      }
-    );
+          body: JSON.stringify({
+            image: image
+          })
+        }
+      );
 
     const text =
       await response.text();
@@ -367,75 +348,89 @@ async function analyzeCurrentFrame() {
 
     try {
 
-      data = JSON.parse(text);
+      data =
+        JSON.parse(text);
 
     } catch (error) {
 
-      result.innerText =
-        "Ответ сервера:\n" +
-        text;
+      console.log(
+        "Ответ сервера:",
+        text
+      );
 
       analyzing = false;
 
       return;
     }
 
+
+    /* =========================
+       КАРТЫ НЕТ
+    ========================= */
+
     if (
-      data.success &&
-      data.result &&
-      data.result !== "NO_CARD"
+      !data.success ||
+      !data.card ||
+      data.card === "NO_CARD"
+    ) {
+
+      analyzing = false;
+
+      return;
+    }
+
+
+    const currentCard =
+      data.card.trim();
+
+
+    /* =========================
+       ЭТА ЖЕ КАРТА
+    ========================= */
+
+    if (
+      lastCard !== "" &&
+      currentCard === lastCard
     ) {
 
       /*
-       * Показываем ответ.
-       * Он останется на экране.
+       * Ничего не меняем.
+       *
+       * Старый ответ остаётся
+       * на экране.
        */
-
-      result.innerText =
-        "🃏 " + data.result;
-
-      /*
-       * Запоминаем текущую карту
-       */
-
-      lastCard = data.result;
-
-      /*
-       * Теперь ждём именно НОВУЮ карту.
-       */
-
-      waitingForNewCard = true;
 
       analyzing = false;
-
-      /*
-       * Через 2 секунды начинаем
-       * проверять камеру на новую карту.
-       */
-
-      setTimeout(function() {
-
-        waitingForNewCard = false;
-
-      }, 2000);
 
       return;
     }
 
-    /*
-     * Карты нет.
-     */
+
+    /* =========================
+       НОВАЯ КАРТА
+    ========================= */
+
+    lastCard =
+      currentCard;
+
+
+    result.innerText =
+      "🃏 " +
+      currentCard +
+      "\n\n" +
+      data.answer;
+
 
     analyzing = false;
 
   } catch (error) {
 
-    result.innerText =
-      "Ошибка соединения:\n" +
-      error.message;
+    console.log(
+      "Ошибка соединения:",
+      error.message
+    );
 
     analyzing = false;
-
   }
 }
 
