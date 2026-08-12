@@ -135,17 +135,44 @@ button {
 
 <script>
 
+/* =================================
+   ОСНОВНЫЕ ПЕРЕМЕННЫЕ
+================================= */
+
 let stream = null;
 
 let camera = "environment";
 
 let analyzing = false;
 
-let waitingForNewCard = false;
-
 let scanTimer = null;
 
-let cardWasRemoved = false;
+
+/*
+   Последняя подтверждённая карта.
+   
+   Именно с ней сравниваем
+   следующую найденную карту.
+*/
+let currentCard = "";
+
+
+/*
+   Кандидат на новую карту.
+   
+   Используется для защиты
+   от случайных распознаваний.
+*/
+let candidateCard = "";
+
+let candidateCount = 0;
+
+
+/*
+   Сколько одинаковых распознаваний
+   нужно получить подряд.
+*/
+const REQUIRED_CONFIRMATIONS = 2;
 
 
 const video =
@@ -178,12 +205,14 @@ async function startCamera() {
     stream = null;
   }
 
+
   if (scanTimer) {
 
     clearInterval(scanTimer);
 
     scanTimer = null;
   }
+
 
   result.innerText =
     "📷 Запускаю камеру...";
@@ -255,8 +284,18 @@ switchButton.addEventListener(
         ? "user"
         : "environment";
 
-    waitingForNewCard = false;
-    cardWasRemoved = false;
+
+    /*
+       При смене камеры
+       начинаем поиск заново.
+    */
+
+    currentCard = "";
+
+    candidateCard = "";
+
+    candidateCount = 0;
+
 
     await startCamera();
 
@@ -271,7 +310,9 @@ switchButton.addEventListener(
 function startAutoScan() {
 
   if (scanTimer) {
+
     clearInterval(scanTimer);
+
   }
 
 
@@ -283,25 +324,23 @@ function startAutoScan() {
           return;
         }
 
+
         if (analyzing) {
           return;
         }
 
-        if (waitingForNewCard) {
-          return;
-        }
 
         analyzeCurrentFrame();
 
       },
-      1500
+      1800
     );
 
 }
 
 
 /* =================================
-   АНАЛИЗ КАДРА
+   АНАЛИЗ ТЕКУЩЕГО КАДРА
 ================================= */
 
 async function analyzeCurrentFrame() {
@@ -309,6 +348,7 @@ async function analyzeCurrentFrame() {
   if (analyzing) {
     return;
   }
+
 
   analyzing = true;
 
@@ -341,24 +381,17 @@ async function analyzeCurrentFrame() {
 
 
   /*
-    Если ждём новую карту,
-    временно ничего не меняем
-    на экране.
+     Если карты ещё никогда
+     не было — показываем поиск.
+
+     Если ответ уже есть —
+     НЕ меняем его.
   */
 
-  if (!waitingForNewCard) {
+  if (!currentCard) {
 
-    /*
-      Показываем процесс только
-      когда ещё нет готового ответа.
-    */
-
-    if (!cardWasRemoved) {
-
-      result.innerText =
-        "🔎 Ищу карту...";
-
-    }
+    result.innerText =
+      "🔎 Ищу карту...";
 
   }
 
@@ -401,9 +434,18 @@ async function analyzeCurrentFrame() {
 
     } catch (error) {
 
-      result.innerText =
-        "Ответ сервера:\n" +
-        text;
+      /*
+         Ошибку сервера показываем
+         только если ещё нет карты.
+      */
+
+      if (!currentCard) {
+
+        result.innerText =
+          "Ответ сервера:\n" +
+          text;
+
+      }
 
       analyzing = false;
 
@@ -417,90 +459,119 @@ async function analyzeCurrentFrame() {
     ================================= */
 
     if (
-      data.success &&
+      !data.success ||
+      !data.result ||
       data.result === "NO_CARD"
     ) {
 
       /*
-        Карта исчезла из кадра.
+         ВАЖНО:
 
-        Теперь разрешаем распознавать
-        следующую карту.
+         Если карту убрали,
+         мы НИЧЕГО НЕ МЕНЯЕМ.
+
+         Текущий ответ остаётся
+         на экране.
       */
 
-      if (waitingForNewCard) {
+      candidateCard = "";
 
-        waitingForNewCard = false;
-
-        cardWasRemoved = true;
-
-        result.innerText =
-          "📷 Готов к следующей карте.\nПоложи новую карту.";
-
-      }
+      candidateCount = 0;
 
       analyzing = false;
 
       return;
+
     }
 
 
     /* =================================
-       КАРТА НАЙДЕНА
+       ПОЛУЧИЛИ НАЗВАНИЕ КАРТЫ
     ================================= */
 
+    const detectedCard =
+      data.result.trim();
+
+
+    /*
+       Если Gemini вернул ту же карту,
+       которая уже показана,
+       абсолютно ничего не делаем.
+    */
+
     if (
-      data.success &&
-      data.result &&
-      data.result !== "NO_CARD"
+      currentCard &&
+      detectedCard === currentCard
     ) {
 
-      /*
-        Если карта уже была показана,
-        больше её не обрабатываем.
-      */
+      candidateCard = "";
 
-      if (waitingForNewCard) {
-
-        analyzing = false;
-
-        return;
-
-      }
-
-
-      /*
-        Показываем ответ.
-      */
-
-      result.innerText =
-        "🃏 " + data.result;
-
-
-      /*
-        Запоминаем, что карта уже
-        распознана.
-      */
-
-      waitingForNewCard = true;
-
-      cardWasRemoved = false;
-
-
-      /*
-        Ответ остаётся на экране.
-
-        Теперь камера продолжает
-        смотреть, но новая карта
-        будет принята только после
-        того, как старая исчезнет.
-      */
+      candidateCount = 0;
 
       analyzing = false;
 
       return;
 
     }
+
+
+    /* =================================
+       НАЧАЛО ПОИСКА НОВОЙ КАРТЫ
+    ================================= */
+
+    if (
+      candidateCard === detectedCard
+    ) {
+
+      candidateCount++;
+
+    } else {
+
+      candidateCard =
+        detectedCard;
+
+      candidateCount = 1;
+
+    }
+
+
+    /*
+       Пока новая карта определилась
+       только один раз — ничего
+       на экране не меняем.
+    */
+
+    if (
+      candidateCount <
+      REQUIRED_CONFIRMATIONS
+    ) {
+
+      analyzing = false;
+
+      return;
+
+    }
+
+
+    /* =================================
+       НОВАЯ КАРТА ПОДТВЕРЖДЕНА
+    ================================= */
+
+    currentCard =
+      detectedCard;
+
+
+    candidateCard = "";
+
+    candidateCount = 0;
+
+
+    /*
+       Показываем новый ответ.
+    */
+
+    result.innerText =
+      "🃏 " + currentCard;
 
 
     analyzing = false;
@@ -508,9 +579,20 @@ async function analyzeCurrentFrame() {
 
   } catch (error) {
 
-    result.innerText =
-      "Ошибка соединения:\n" +
-      error.message;
+    /*
+       Если интернет временно пропал,
+       старый ответ НЕ стираем.
+    */
+
+    if (!currentCard) {
+
+      result.innerText =
+        "Ошибка соединения:\n" +
+        error.message;
+
+    }
+
+    console.log(error);
 
     analyzing = false;
 
