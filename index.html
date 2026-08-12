@@ -1,80 +1,59 @@
 <!DOCTYPE html>
 <html>
-
 <head>
 
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Taro AI</title>
 
 <style>
 
-* {
-  box-sizing: border-box;
+*{
+box-sizing:border-box;
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  min-height: 100%;
-  background: #111;
-  color: white;
-  font-family: Arial, sans-serif;
+body{
+margin:0;
+padding:10px;
+background:#111;
+color:white;
+font-family:Arial,sans-serif;
+text-align:center;
 }
 
-body {
-  text-align: center;
-  padding: 10px;
+h2{
+margin:5px;
 }
 
-h2 {
-  margin: 5px 0 10px;
-  font-size: 22px;
+#cameraBox{
+width:100%;
+max-width:600px;
+margin:auto;
 }
 
-#cameraBox {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
+video{
+width:100%;
+max-height:55vh;
+border-radius:12px;
+background:black;
 }
 
-video {
-  display: block;
-  width: 100%;
-  max-height: 55vh;
-  object-fit: cover;
-  border-radius: 12px;
-  background: black;
+button{
+margin-top:10px;
+padding:14px 18px;
+font-size:17px;
+border:0;
+border-radius:10px;
 }
 
-#controls {
-  margin-top: 10px;
-}
-
-button {
-  padding: 14px 18px;
-  font-size: 17px;
-  border: 0;
-  border-radius: 10px;
-  background: white;
-  color: black;
-}
-
-#result {
-  width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  min-height: 60px;
-  font-size: 18px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  background: #1b1b1b;
-  border-radius: 10px;
+#result{
+margin-top:12px;
+padding:12px;
+background:#1b1b1b;
+border-radius:10px;
+font-size:18px;
+min-height:60px;
+white-space:pre-wrap;
 }
 
 </style>
@@ -86,326 +65,272 @@ button {
 
 <div id="cameraBox">
 
-  <h2>🃏 Taro AI</h2>
+<h2>🃏 Taro AI</h2>
 
-  <video
-    id="video"
-    autoplay
-    playsinline
-    muted>
-  </video>
+<video id="video" autoplay playsinline muted></video>
 
-  <div id="controls">
+<br>
 
-    <button id="switchButton">
-      🔄 СМЕНИТЬ КАМЕРУ
-    </button>
+<button id="switchButton">
+🔄 СМЕНИТЬ КАМЕРУ
+</button>
 
-  </div>
-
-  <div id="result">
-    📷 Запускаю камеру...
-  </div>
+<div id="result">
+📷 Запускаю камеру...
+</div>
 
 </div>
 
 
-<canvas
-  id="canvas"
-  style="display:none;">
-</canvas>
+<canvas id="canvas" style="display:none"></canvas>
 
 
 <script>
 
-let stream = null;
-
-let camera = "environment";
-
-let analyzing = false;
-
-let scanTimer = null;
-
-let pauseUntil = 0;
+let stream=null;
+let camera="environment";
+let analyzing=false;
+let timer=null;
 
 
-const video =
-  document.getElementById("video");
-
-const canvas =
-  document.getElementById("canvas");
-
-const result =
-  document.getElementById("result");
-
-const switchButton =
-  document.getElementById("switchButton");
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const result=document.getElementById("result");
+const switchButton=document.getElementById("switchButton");
 
 
 
-async function startCamera() {
+async function startCamera(){
 
-  if (stream) {
-
-    stream.getTracks().forEach(
-      function(track) {
-        track.stop();
-      }
-    );
-
-    stream = null;
-  }
+if(stream){
+stream.getTracks().forEach(t=>t.stop());
+}
 
 
-  if (scanTimer) {
+try{
 
-    clearInterval(scanTimer);
+stream=await navigator.mediaDevices.getUserMedia({
 
-    scanTimer = null;
-  }
+video:{
+facingMode:{
+ideal:camera
+},
+width:{
+ideal:1280
+},
+height:{
+ideal:720
+}
+},
 
+audio:false
 
-  result.innerText =
-    "📷 Запускаю камеру...";
-
-
-  try {
-
-    stream =
-      await navigator.mediaDevices.getUserMedia({
-
-        video: {
-
-          facingMode: {
-            ideal: camera
-          },
-
-          width: {
-            ideal: 1280
-          },
-
-          height: {
-            ideal: 720
-          }
-
-        },
-
-        audio: false
-
-      });
+});
 
 
-    video.srcObject = stream;
+video.srcObject=stream;
 
-    await video.play();
-
-
-    result.innerText =
-      "📷 Положи карту в кадр.";
+await video.play();
 
 
-    startAutoScan();
+result.innerText=
+"📷 Положи карту в кадр.";
 
 
-  } catch (error) {
+startScan();
 
-    result.innerText =
-      "Ошибка камеры:\n" +
-      error.message;
 
-  }
+}catch(e){
+
+result.innerText=
+"Ошибка камеры: "+e.message;
+
+}
 
 }
 
 
 
-switchButton.addEventListener(
 
-  "click",
+switchButton.onclick=async()=>{
 
-  async function() {
+camera =
+camera==="environment"
+?"user"
+:"environment";
 
-    camera =
-      camera === "environment"
-        ? "user"
-        : "environment";
+await startCamera();
 
-    await startCamera();
+};
 
-  }
+
+
+
+
+function startScan(){
+
+if(timer){
+clearInterval(timer);
+}
+
+
+timer=setInterval(()=>{
+
+if(!video.videoWidth){
+return;
+}
+
+
+if(analyzing){
+return;
+}
+
+
+analyzeFrame();
+
+
+},1000);
+
+}
+
+
+
+
+
+
+
+async function analyzeFrame(){
+
+
+if(analyzing){
+return;
+}
+
+
+analyzing=true;
+
+
+canvas.width=video.videoWidth;
+canvas.height=video.videoHeight;
+
+
+let ctx=canvas.getContext("2d");
+
+
+ctx.drawImage(
+video,
+0,
+0,
+canvas.width,
+canvas.height
+);
+
+
+
+let image=
+canvas.toDataURL(
+"image/jpeg",
+0.7
+);
+
+
+
+try{
+
+
+let response=await fetch(
+
+"https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
+
+{
+
+method:"POST",
+
+headers:{
+
+"Content-Type":
+"text/plain;charset=utf-8"
+
+},
+
+body:JSON.stringify({
+
+image:image
+
+})
+
+}
 
 );
 
 
 
-function startAutoScan() {
-
-  if (scanTimer) {
-
-    clearInterval(scanTimer);
-
-  }
+let text=
+await response.text();
 
 
-  scanTimer =
-    setInterval(
+let data=
+JSON.parse(text);
 
-      function() {
 
-        if (!video.videoWidth) {
-          return;
-        }
 
-        if (analyzing) {
-          return;
-        }
+if(
 
-        if (Date.now() < pauseUntil) {
-          return;
-        }
+data.success &&
+data.result &&
+data.result!="NO_CARD"
 
-        analyzeCurrentFrame();
+){
 
-      },
+result.innerText=
+"🃏 "+data.result;
 
-      1000
+}
 
-    );
+
+else{
+
+
+if(
+!result.innerText.includes("🃏")
+){
+
+result.innerText=
+"📷 Положи карту в кадр.";
+
+}
+
+}
+
+
+}
+
+catch(e){
+
+console.log(e);
+
+}
+
+
+analyzing=false;
+
 
 }
 
 
 
-async function analyzeCurrentFrame() {
-
-  if (analyzing) {
-    return;
-  }
-
-
-  analyzing = true;
-
-
-  canvas.width =
-    video.videoWidth;
-
-  canvas.height =
-    video.videoHeight;
-
-
-  const ctx =
-    canvas.getContext("2d");
-
-
-  ctx.drawImage(
-    video,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-
-  const image =
-    canvas.toDataURL(
-      "image/jpeg",
-      0.7
-    );
-
-
-  try {
-
-    const response =
-      await fetch(
-
-        "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
-
-        {
-
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "text/plain;charset=utf-8"
-          },
-
-          body:
-            JSON.stringify({
-              image: image
-            })
-
-        }
-
-      );
-
-
-    const text =
-      await response.text();
-
-
-    const data =
-      JSON.parse(text);
-
-
-    if (
-      data.success &&
-      data.result &&
-      data.result !== "NO_CARD"
-    ) {
-
-      result.innerText =
-        "🃏 " +
-        data.result;
-
-
-      /*
-       Показываем ответ 3 секунды.
-       Затем поиск продолжается.
-      */
-
-      pauseUntil =
-        Date.now() + 3000;
-
-    }
-
-    else {
-
-      result.innerText =
-        "📷 Положи карту в кадр.";
-
-    }
-
-
-  } catch (error) {
-
-    console.log(error);
-
-    result.innerText =
-      "Ошибка распознавания";
-
-  }
-
-
-  analyzing = false;
-
-}
 
 
 
-window.addEventListener(
+window.onload=()=>{
 
-  "load",
+startCamera();
 
-  function() {
+};
 
-    startCamera();
-
-  }
-
-);
 
 </script>
 
-</body>
 
+</body>
 </html>
