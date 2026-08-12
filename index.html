@@ -1,191 +1,298 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
 <title>Taro AI</title>
 
 <style>
+
 * {
   box-sizing: border-box;
 }
 
 html,
 body {
+
   margin: 0;
   padding: 0;
+
   width: 100%;
   min-height: 100%;
+
   background: #111;
   color: white;
+
   font-family: Arial, sans-serif;
 }
 
 body {
+
   text-align: center;
   padding: 10px;
 }
 
 h2 {
+
   margin: 5px 0 10px 0;
+
   font-size: 22px;
 }
 
 #cameraBox {
+
   width: 100%;
   max-width: 600px;
+
   margin: 0 auto;
 }
 
 video {
+
   display: block;
+
   width: 100%;
   height: auto;
+
   max-height: 55vh;
+
   object-fit: cover;
+
   border-radius: 12px;
+
   background: black;
 }
 
 #controls {
+
   width: 100%;
+
   margin-top: 10px;
 }
 
 button {
+
   padding: 14px 18px;
+
   font-size: 17px;
+
   border: 0;
+
   border-radius: 10px;
+
   background: white;
+
   color: black;
+
   cursor: pointer;
 }
 
 #result {
+
   width: 100%;
   max-width: 600px;
+
   margin: 12px auto 0 auto;
+
   padding: 12px;
+
   min-height: 60px;
+
   font-size: 18px;
+
   line-height: 1.4;
+
   white-space: pre-wrap;
+
   background: #1b1b1b;
+
   border-radius: 10px;
 }
 
 @media (max-height: 700px) {
 
   h2 {
+
     font-size: 19px;
-    margin: 3px 0 6px 0;
+
+    margin:
+      3px 0 6px 0;
   }
 
   video {
+
     max-height: 48vh;
   }
 
   button {
-    padding: 11px 16px;
+
+    padding:
+      11px 16px;
+
     font-size: 16px;
   }
 
   #result {
+
     margin-top: 8px;
+
     padding: 8px;
+
     font-size: 16px;
+
     min-height: 50px;
   }
+
 }
+
 </style>
+
 </head>
+
 
 <body>
 
+
 <div id="cameraBox">
 
-<h2>🃏 Taro AI</h2>
+
+<h2>
+🃏 Taro AI
+</h2>
+
 
 <video
-  id="video"
-  autoplay
-  playsinline
-  muted>
+id="video"
+autoplay
+playsinline
+muted>
 </video>
 
+
 <div id="controls">
+
 
 <button id="switchButton">
 🔄 СМЕНИТЬ КАМЕРУ
 </button>
 
+
 </div>
+
 
 <div id="result">
 📷 Запускаю камеру...
 </div>
 
+
 </div>
 
+
 <canvas
-  id="canvas"
-  style="display:none;">
+id="canvas"
+style="display:none;">
 </canvas>
 
 
 <script>
 
-let stream = null;
-
-let camera = "environment";
-
-let analyzing = false;
-
-let scanTimer = null;
-
 
 /*
 ========================================
-СОСТОЯНИЕ
+ВАЖНО
 ========================================
-*/
 
-
-/*
-Карта сейчас находится в кадре.
-*/
-
-let cardIsPresent = false;
-
-
-/*
-Эта переменная нужна, чтобы после
-обнаружения карты мы не запускали
-новое распознавание снова и снова.
-*/
-
-let waitingForNewCard = false;
-
-
-/*
-URL APPS SCRIPT
+ТВОЙ APPS SCRIPT URL
 */
 
 const APPS_SCRIPT_URL =
 "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec";
 
 
+/*
+========================================
+ПЕРЕМЕННЫЕ
+========================================
+*/
+
+let stream = null;
+
+let camera =
+"environment";
+
+let analyzing =
+false;
+
+let scanTimer =
+null;
+
+
+/*
+Карта сейчас находится
+в кадре.
+*/
+
+let cardPresent =
+false;
+
+
+/*
+Чтобы не запускать
+полный анализ несколько раз.
+*/
+
+let analyzingNewCard =
+false;
+
+
+/*
+После обнаружения карты
+делаем небольшую паузу.
+*/
+
+let lastDetectionTime =
+0;
+
+
+/*
+Интервал проверки.
+*/
+
+const SCAN_INTERVAL =
+1800;
+
+
+/*
+После карты не нужно
+мгновенно ловить шум камеры.
+*/
+
+const NEW_CARD_DELAY =
+1500;
+
+
 const video =
-document.getElementById("video");
+document.getElementById(
+"video"
+);
 
 const canvas =
-document.getElementById("canvas");
+document.getElementById(
+"canvas"
+);
 
 const result =
-document.getElementById("result");
+document.getElementById(
+"result"
+);
 
 const switchButton =
-document.getElementById("switchButton");
+document.getElementById(
+"switchButton"
+);
 
 
 /*
@@ -196,13 +303,18 @@ document.getElementById("switchButton");
 
 async function startCamera() {
 
+
   if (stream) {
 
-    stream.getTracks().forEach(
-      function(track) {
-        track.stop();
-      }
-    );
+    stream
+      .getTracks()
+      .forEach(
+        function(track) {
+
+          track.stop();
+
+        }
+      );
 
     stream = null;
   }
@@ -210,43 +322,58 @@ async function startCamera() {
 
   if (scanTimer) {
 
-    clearInterval(scanTimer);
+    clearInterval(
+      scanTimer
+    );
 
     scanTimer = null;
   }
 
 
   /*
-  При смене камеры начинаем
-  полностью новый цикл.
+  Сбрасываем состояние.
   */
 
-  cardIsPresent = false;
+  cardPresent =
+  false;
 
-  waitingForNewCard = false;
+  analyzingNewCard =
+  false;
 
 
   result.innerText =
-    "📷 Запускаю камеру...";
+  "📷 Запускаю камеру...";
 
 
   try {
 
+
     stream =
-      await navigator.mediaDevices.getUserMedia({
+    await navigator
+      .mediaDevices
+      .getUserMedia({
 
         video: {
 
           facingMode: {
-            ideal: camera
+
+            ideal:
+            camera
+
           },
 
           width: {
-            ideal: 1280
+
+            ideal:
+            1280
+
           },
 
           height: {
-            ideal: 720
+
+            ideal:
+            720
+
           }
 
         },
@@ -256,13 +383,15 @@ async function startCamera() {
       });
 
 
-    video.srcObject = stream;
+    video.srcObject =
+    stream;
+
 
     await video.play();
 
 
     result.innerText =
-      "📷 Камера включена.\nПоложи карту в кадр.";
+    "📷 Камера включена.\nПоложи карту в кадр.";
 
 
     startAutoScan();
@@ -270,13 +399,17 @@ async function startCamera() {
 
   } catch (error) {
 
-    result.innerText =
-      "Ошибка камеры:\n" +
-      error.name +
-      ": " +
-      error.message;
 
-    console.log(error);
+    result.innerText =
+    "Ошибка камеры:\n" +
+    error.name +
+    ": " +
+    error.message;
+
+
+    console.log(
+      error
+    );
 
   }
 
@@ -290,18 +423,20 @@ async function startCamera() {
 */
 
 switchButton.addEventListener(
-  "click",
-  async function() {
+"click",
+async function() {
 
-    camera =
-      camera === "environment"
-        ? "user"
-        : "environment";
 
-    await startCamera();
+  camera =
+  camera === "environment"
+    ? "user"
+    : "environment";
 
-  }
-);
+
+  await startCamera();
+
+
+});
 
 
 /*
@@ -312,144 +447,190 @@ switchButton.addEventListener(
 
 function startAutoScan() {
 
+
   if (scanTimer) {
 
-    clearInterval(scanTimer);
+    clearInterval(
+      scanTimer
+    );
 
   }
 
 
   scanTimer =
-    setInterval(
-      function() {
-
-        if (!video.videoWidth) {
-          return;
-        }
+  setInterval(
+    function() {
 
 
-        if (analyzing) {
-          return;
-        }
+      if (
+        !video.videoWidth
+      ) {
+
+        return;
+
+      }
 
 
-        /*
-        Если карта уже найдена —
-        НЕ отправляем её снова.
-        */
+      if (
+        analyzing
+      ) {
 
-        if (waitingForNewCard) {
-          return;
-        }
+        return;
+
+      }
 
 
-        analyzeCurrentFrame();
+      analyzeFrame();
 
-      },
-      1800
-    );
+
+    },
+    SCAN_INTERVAL
+  );
 
 }
 
 
 /*
 ========================================
-АНАЛИЗ КАДРА
+ДЕЛАЕМ СНИМОК
 ========================================
 */
 
-async function analyzeCurrentFrame() {
-
-  if (analyzing) {
-    return;
-  }
-
-
-  analyzing = true;
+function makeImage() {
 
 
   canvas.width =
-    video.videoWidth;
+  video.videoWidth;
+
 
   canvas.height =
-    video.videoHeight;
+  video.videoHeight;
 
 
   const ctx =
-    canvas.getContext("2d");
-
-
-  ctx.drawImage(
-    video,
-    0,
-    0,
-    canvas.width,
-    canvas.height
+  canvas.getContext(
+    "2d"
   );
 
 
-  const image =
-    canvas.toDataURL(
-      "image/jpeg",
-      0.8
-    );
+  ctx.drawImage(
+
+    video,
+
+    0,
+    0,
+
+    canvas.width,
+    canvas.height
+
+  );
 
 
-  /*
-  Только когда действительно ищем
-  новую карту, показываем это сообщение.
-  */
+  return canvas.toDataURL(
+    "image/jpeg",
+    0.75
+  );
 
-  if (!cardIsPresent) {
+}
 
-    result.innerText =
-      "🔎 Ищу карту...";
+
+/*
+========================================
+ПРОВЕРКА КАДРА
+========================================
+*/
+
+async function analyzeFrame() {
+
+
+  if (
+    analyzing
+  ) {
+
+    return;
 
   }
+
+
+  analyzing =
+  true;
+
+
+  const image =
+  makeImage();
 
 
   try {
 
-    const response =
-      await fetch(
-        APPS_SCRIPT_URL,
-        {
-          method: "POST",
 
-          headers: {
-            "Content-Type":
-              "text/plain;charset=utf-8"
-          },
-
-          body: JSON.stringify({
-            image: image
-          })
-        }
-      );
+    /*
+    ====================================
+    ШАГ 1
+    ПРОСТО ОПРЕДЕЛЯЕМ,
+    ЕСТЬ ЛИ КАРТА
+    ====================================
+    */
 
 
-    const text =
-      await response.text();
+    const detectResponse =
+    await fetch(
+
+      APPS_SCRIPT_URL,
+
+      {
+
+        method:
+        "POST",
+
+        headers: {
+
+          "Content-Type":
+          "text/plain;charset=utf-8"
+
+        },
+
+        body:
+        JSON.stringify({
+
+          action:
+          "detect",
+
+          image:
+          image
+
+        })
+
+      }
+
+    );
 
 
-    let data;
+    const detectText =
+    await detectResponse.text();
+
+
+    let detectData;
 
 
     try {
 
-      data =
-        JSON.parse(text);
+      detectData =
+      JSON.parse(
+        detectText
+      );
 
     } catch (error) {
 
       console.log(
-        "Ответ сервера:",
-        text
+        "Ошибка JSON:",
+        detectText
       );
 
-      analyzing = false;
+      analyzing =
+      false;
 
       return;
+
     }
 
 
@@ -460,92 +641,245 @@ async function analyzeCurrentFrame() {
     */
 
     if (
-      !data.success ||
-      !data.result ||
-      data.result === "NO_CARD"
+
+      !detectData.success ||
+
+      !detectData.result ||
+
+      detectData.result
+      .trim()
+      .toUpperCase()
+      ===
+      "NO_CARD"
+
     ) {
 
-      /*
-      Карты нет.
-
-      Главное:
-      НЕ стираем предыдущий ответ.
-      */
-
-      cardIsPresent = false;
-
-      waitingForNewCard = false;
-
 
       /*
-      Если предыдущего ответа нет,
-      показываем подсказку.
+      Если карты не видно,
+      сбрасываем состояние.
+
+      Но НЕ удаляем ответ.
       */
 
-      if (
-        !result.innerText ||
-        result.innerText ===
-          "🔎 Ищу карту..."
-      ) {
+      cardPresent =
+      false;
 
-        result.innerText =
-          "📷 Положи карту в кадр.";
+
+      analyzingNewCard =
+      false;
+
+
+      analyzing =
+      false;
+
+
+      return;
+
+    }
+
+
+    /*
+    ====================================
+    КАРТА ЕСТЬ
+    ====================================
+    */
+
+
+    /*
+    Если карта уже была обработана,
+    ничего не делаем.
+
+    Камера продолжает проверяться.
+    */
+
+    if (
+      cardPresent
+    ) {
+
+      analyzing =
+      false;
+
+      return;
+
+    }
+
+
+    /*
+    Небольшая защита
+    от слишком быстрого
+    повторного срабатывания.
+    */
+
+    if (
+
+      Date.now() -
+      lastDetectionTime
+      <
+      NEW_CARD_DELAY
+
+    ) {
+
+      analyzing =
+      false;
+
+      return;
+
+    }
+
+
+    /*
+    ====================================
+    НАСТОЯЩАЯ НОВАЯ КАРТА
+    ====================================
+    */
+
+
+    cardPresent =
+    true;
+
+
+    analyzingNewCard =
+    true;
+
+
+    lastDetectionTime =
+    Date.now();
+
+
+    result.innerText =
+    "🔎 Карта найдена!\nПолучаю ответ...";
+
+
+    /*
+    ====================================
+    ШАГ 2
+    ПОЛУЧАЕМ ПОЛНЫЙ ОТВЕТ
+    ====================================
+    */
+
+
+    const analyzeResponse =
+    await fetch(
+
+      APPS_SCRIPT_URL,
+
+      {
+
+        method:
+        "POST",
+
+        headers: {
+
+          "Content-Type":
+          "text/plain;charset=utf-8"
+
+        },
+
+        body:
+        JSON.stringify({
+
+          action:
+          "analyze",
+
+          image:
+          image
+
+        })
 
       }
 
-
-      analyzing = false;
-
-      return;
-    }
-
-
-    /*
-    ====================================
-    КАРТА НАЙДЕНА
-    ====================================
-    */
-
-
-    /*
-    Если карта уже была найдена,
-    ничего больше не делаем.
-    */
-
-    if (waitingForNewCard) {
-
-      analyzing = false;
-
-      return;
-    }
-
-
-    /*
-    Запоминаем:
-
-    карта сейчас в кадре.
-    */
-
-    cardIsPresent = true;
-
-    waitingForNewCard = true;
-
-
-    /*
-    ПОКАЗЫВАЕМ ПОЛУЧЕННЫЙ ОТВЕТ
-    */
-
-    result.innerText =
-      "🃏 " + data.result;
-
-
-    console.log(
-      "НОВАЯ КАРТА / НОВЫЙ ОТВЕТ:",
-      data.result
     );
 
 
+    const analyzeText =
+    await analyzeResponse.text();
+
+
+    let analyzeData;
+
+
+    try {
+
+      analyzeData =
+      JSON.parse(
+        analyzeText
+      );
+
+    } catch (error) {
+
+      console.log(
+        "Ошибка JSON анализа:",
+        analyzeText
+      );
+
+
+      cardPresent =
+      false;
+
+
+      analyzingNewCard =
+      false;
+
+
+      analyzing =
+      false;
+
+
+      return;
+
+    }
+
+
+    /*
+    ====================================
+    ПОКАЗЫВАЕМ ОТВЕТ
+    ====================================
+    */
+
+
+    if (
+      analyzeData.success
+    ) {
+
+
+      result.innerText =
+      "🃏 " +
+      analyzeData.result;
+
+
+      console.log(
+        "ОТВЕТ:",
+        analyzeData.result
+      );
+
+
+    } else {
+
+
+      result.innerText =
+      "Ошибка: " +
+      analyzeData.error;
+
+
+      /*
+      Если анализ не удался,
+      разрешаем попробовать
+      эту карту ещё раз.
+      */
+
+      cardPresent =
+      false;
+
+    }
+
+
+    analyzingNewCard =
+    false;
+
+
   } catch (error) {
+
 
     console.log(
       "Ошибка соединения:",
@@ -554,31 +888,40 @@ async function analyzeCurrentFrame() {
 
 
     /*
-    Ошибку не выводим поверх
-    уже полученного ответа.
+    При ошибке разрешаем
+    повторную попытку.
     */
+
+    cardPresent =
+    false;
+
+
+    analyzingNewCard =
+    false;
 
   }
 
 
-  analyzing = false;
+  analyzing =
+  false;
+
 }
 
 
 /*
 ========================================
-АВТОЗАПУСК КАМЕРЫ
+АВТОЗАПУСК
 ========================================
 */
 
 window.addEventListener(
-  "load",
-  function() {
+"load",
+function() {
 
-    startCamera();
+  startCamera();
 
-  }
-);
+});
+
 
 </script>
 
