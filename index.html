@@ -1,379 +1,187 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Taro AI</title>
 
 <style>
-
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
-
+html, body {
   margin: 0;
   padding: 0;
-
   width: 100%;
   min-height: 100%;
-
   background: #111;
   color: white;
-
   font-family: Arial, sans-serif;
 }
 
 body {
-
   text-align: center;
   padding: 10px;
 }
 
 h2 {
-
   margin: 5px 0 10px 0;
-
   font-size: 22px;
 }
 
 #cameraBox {
-
   width: 100%;
   max-width: 600px;
-
   margin: 0 auto;
 }
 
 video {
-
   display: block;
-
   width: 100%;
   height: auto;
-
   max-height: 55vh;
-
   object-fit: cover;
-
   border-radius: 12px;
-
   background: black;
 }
 
 #controls {
-
   width: 100%;
-
   margin-top: 10px;
 }
 
 button {
-
   padding: 14px 18px;
-
   font-size: 17px;
-
   border: 0;
-
   border-radius: 10px;
-
   background: white;
-
   color: black;
-
   cursor: pointer;
 }
 
 #result {
-
   width: 100%;
   max-width: 600px;
-
   margin: 12px auto 0 auto;
-
   padding: 12px;
-
   min-height: 60px;
-
   font-size: 18px;
-
   line-height: 1.4;
-
   white-space: pre-wrap;
-
   background: #1b1b1b;
-
   border-radius: 10px;
 }
-
-@media (max-height: 700px) {
-
-  h2 {
-
-    font-size: 19px;
-
-    margin:
-      3px 0 6px 0;
-  }
-
-  video {
-
-    max-height: 48vh;
-  }
-
-  button {
-
-    padding:
-      11px 16px;
-
-    font-size: 16px;
-  }
-
-  #result {
-
-    margin-top: 8px;
-
-    padding: 8px;
-
-    font-size: 16px;
-
-    min-height: 50px;
-  }
-
-}
-
 </style>
-
 </head>
-
 
 <body>
 
-
 <div id="cameraBox">
 
-
-<h2>
-🃏 Taro AI
-</h2>
-
+<h2>🃏 Taro AI</h2>
 
 <video
-id="video"
-autoplay
-playsinline
-muted>
+  id="video"
+  autoplay
+  playsinline
+  muted>
 </video>
 
-
 <div id="controls">
-
 
 <button id="switchButton">
 🔄 СМЕНИТЬ КАМЕРУ
 </button>
 
-
 </div>
-
 
 <div id="result">
 📷 Запускаю камеру...
 </div>
 
-
 </div>
 
-
 <canvas
-id="canvas"
-style="display:none;">
+  id="canvas"
+  style="display:none;">
 </canvas>
 
 
 <script>
 
-
-/*
-========================================
-ВАЖНО
-========================================
-
-ТВОЙ APPS SCRIPT URL
-*/
-
-const APPS_SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec";
-
-
-/*
-========================================
-ПЕРЕМЕННЫЕ
-========================================
-*/
-
 let stream = null;
 
-let camera =
-"environment";
+let camera = "environment";
 
-let analyzing =
-false;
+let analyzing = false;
 
-let scanTimer =
-null;
+let currentCard = "";
 
-
-/*
-Карта сейчас находится
-в кадре.
-*/
-
-let cardPresent =
-false;
+let scanTimer = null;
 
 
-/*
-Чтобы не запускать
-полный анализ несколько раз.
-*/
-
-let analyzingNewCard =
-false;
-
-
-/*
-После обнаружения карты
-делаем небольшую паузу.
-*/
-
-let lastDetectionTime =
-0;
-
-
-/*
-Интервал проверки.
-*/
-
-const SCAN_INTERVAL =
-1800;
-
-
-/*
-После карты не нужно
-мгновенно ловить шум камеры.
-*/
-
-const NEW_CARD_DELAY =
-1500;
-
+/* =========================
+   ЭЛЕМЕНТЫ
+========================= */
 
 const video =
-document.getElementById(
-"video"
-);
+  document.getElementById("video");
 
 const canvas =
-document.getElementById(
-"canvas"
-);
+  document.getElementById("canvas");
 
 const result =
-document.getElementById(
-"result"
-);
+  document.getElementById("result");
 
 const switchButton =
-document.getElementById(
-"switchButton"
-);
+  document.getElementById("switchButton");
 
 
-/*
-========================================
-ЗАПУСК КАМЕРЫ
-========================================
-*/
+/* =========================
+   ЗАПУСК КАМЕРЫ
+========================= */
 
 async function startCamera() {
 
-
   if (stream) {
 
-    stream
-      .getTracks()
-      .forEach(
-        function(track) {
-
-          track.stop();
-
-        }
-      );
+    stream.getTracks().forEach(
+      function(track) {
+        track.stop();
+      }
+    );
 
     stream = null;
   }
 
-
   if (scanTimer) {
 
-    clearInterval(
-      scanTimer
-    );
+    clearInterval(scanTimer);
 
     scanTimer = null;
   }
 
-
-  /*
-  Сбрасываем состояние.
-  */
-
-  cardPresent =
-  false;
-
-  analyzingNewCard =
-  false;
-
-
   result.innerText =
-  "📷 Запускаю камеру...";
-
+    "📷 Запускаю камеру...";
 
   try {
 
-
     stream =
-    await navigator
-      .mediaDevices
-      .getUserMedia({
+      await navigator.mediaDevices.getUserMedia({
 
         video: {
 
           facingMode: {
-
-            ideal:
-            camera
-
+            ideal: camera
           },
 
           width: {
-
-            ideal:
-            1280
-
+            ideal: 1280
           },
 
           height: {
-
-            ideal:
-            720
-
+            ideal: 720
           }
 
         },
@@ -382,546 +190,244 @@ async function startCamera() {
 
       });
 
-
-    video.srcObject =
-    stream;
-
+    video.srcObject = stream;
 
     await video.play();
 
-
     result.innerText =
-    "📷 Камера включена.\nПоложи карту в кадр.";
-
+      "📷 Камера готова.\nПоложи карту в кадр.";
 
     startAutoScan();
 
-
   } catch (error) {
 
-
     result.innerText =
-    "Ошибка камеры:\n" +
-    error.name +
-    ": " +
-    error.message;
+      "Ошибка камеры:\n" +
+      error.name + ": " +
+      error.message;
 
-
-    console.log(
-      error
-    );
-
+    console.log(error);
   }
-
 }
 
 
-/*
-========================================
-СМЕНА КАМЕРЫ
-========================================
-*/
+/* =========================
+   СМЕНА КАМЕРЫ
+========================= */
 
 switchButton.addEventListener(
-"click",
-async function() {
+  "click",
+  async function() {
+
+    camera =
+      camera === "environment"
+        ? "user"
+        : "environment";
+
+    currentCard = "";
+
+    await startCamera();
+
+  }
+);
 
 
-  camera =
-  camera === "environment"
-    ? "user"
-    : "environment";
-
-
-  await startCamera();
-
-
-});
-
-
-/*
-========================================
-АВТОСКАНИРОВАНИЕ
-========================================
-*/
+/* =========================
+   АВТОСКАНИРОВАНИЕ
+========================= */
 
 function startAutoScan() {
 
-
   if (scanTimer) {
-
-    clearInterval(
-      scanTimer
-    );
-
+    clearInterval(scanTimer);
   }
-
 
   scanTimer =
-  setInterval(
-    function() {
+    setInterval(
+      function() {
 
+        if (!video.videoWidth) {
+          return;
+        }
 
-      if (
-        !video.videoWidth
-      ) {
+        if (analyzing) {
+          return;
+        }
 
-        return;
+        analyzeCurrentFrame();
 
-      }
-
-
-      if (
-        analyzing
-      ) {
-
-        return;
-
-      }
-
-
-      analyzeFrame();
-
-
-    },
-    SCAN_INTERVAL
-  );
-
+      },
+      1200
+    );
 }
 
 
-/*
-========================================
-ДЕЛАЕМ СНИМОК
-========================================
-*/
+/* =========================
+   АНАЛИЗ КАДРА
+========================= */
 
-function makeImage() {
+async function analyzeCurrentFrame() {
 
-
-  canvas.width =
-  video.videoWidth;
-
-
-  canvas.height =
-  video.videoHeight;
-
-
-  const ctx =
-  canvas.getContext(
-    "2d"
-  );
-
-
-  ctx.drawImage(
-
-    video,
-
-    0,
-    0,
-
-    canvas.width,
-    canvas.height
-
-  );
-
-
-  return canvas.toDataURL(
-    "image/jpeg",
-    0.75
-  );
-
-}
-
-
-/*
-========================================
-ПРОВЕРКА КАДРА
-========================================
-*/
-
-async function analyzeFrame() {
-
-
-  if (
-    analyzing
-  ) {
-
+  if (analyzing) {
     return;
-
   }
 
+  analyzing = true;
 
-  analyzing =
-  true;
+  canvas.width =
+    video.videoWidth;
 
+  canvas.height =
+    video.videoHeight;
+
+  const ctx =
+    canvas.getContext("2d");
+
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   const image =
-  makeImage();
+    canvas.toDataURL(
+      "image/jpeg",
+      0.75
+    );
 
 
   try {
 
+    const response =
+      await fetch(
+        "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec",
+        {
 
-    /*
-    ====================================
-    ШАГ 1
-    ПРОСТО ОПРЕДЕЛЯЕМ,
-    ЕСТЬ ЛИ КАРТА
-    ====================================
-    */
+          method: "POST",
 
+          headers: {
+            "Content-Type":
+              "text/plain;charset=utf-8"
+          },
 
-    const detectResponse =
-    await fetch(
+          body: JSON.stringify({
+            image: image
+          })
 
-      APPS_SCRIPT_URL,
-
-      {
-
-        method:
-        "POST",
-
-        headers: {
-
-          "Content-Type":
-          "text/plain;charset=utf-8"
-
-        },
-
-        body:
-        JSON.stringify({
-
-          action:
-          "detect",
-
-          image:
-          image
-
-        })
-
-      }
-
-    );
+        }
+      );
 
 
-    const detectText =
-    await detectResponse.text();
+    const text =
+      await response.text();
 
 
-    let detectData;
-
+    let data;
 
     try {
 
-      detectData =
-      JSON.parse(
-        detectText
-      );
+      data =
+        JSON.parse(text);
 
     } catch (error) {
 
       console.log(
-        "Ошибка JSON:",
-        detectText
+        "Ответ сервера:",
+        text
       );
 
-      analyzing =
-      false;
+      analyzing = false;
 
       return;
-
     }
 
 
+    /* =========================
+       КАРТЫ НЕТ
+    ========================= */
+
+    if (
+      !data.success ||
+      !data.result ||
+      data.result === "NO_CARD"
+    ) {
+
+      analyzing = false;
+
+      return;
+    }
+
+
+    /* =========================
+       ПОЛУЧИЛИ КАРТУ
+    ========================= */
+
+    const newCard =
+      data.result.trim();
+
+
     /*
-    ====================================
-    КАРТЫ НЕТ
-    ====================================
+      Если это та же самая карта,
+      ничего не делаем.
     */
 
     if (
-
-      !detectData.success ||
-
-      !detectData.result ||
-
-      detectData.result
-      .trim()
-      .toUpperCase()
-      ===
-      "NO_CARD"
-
+      currentCard &&
+      newCard === currentCard
     ) {
 
-
-      /*
-      Если карты не видно,
-      сбрасываем состояние.
-
-      Но НЕ удаляем ответ.
-      */
-
-      cardPresent =
-      false;
-
-
-      analyzingNewCard =
-      false;
-
-
-      analyzing =
-      false;
-
+      analyzing = false;
 
       return;
-
     }
 
 
     /*
-    ====================================
-    КАРТА ЕСТЬ
-    ====================================
+      НОВАЯ КАРТА
     */
 
-
-    /*
-    Если карта уже была обработана,
-    ничего не делаем.
-
-    Камера продолжает проверяться.
-    */
-
-    if (
-      cardPresent
-    ) {
-
-      analyzing =
-      false;
-
-      return;
-
-    }
-
-
-    /*
-    Небольшая защита
-    от слишком быстрого
-    повторного срабатывания.
-    */
-
-    if (
-
-      Date.now() -
-      lastDetectionTime
-      <
-      NEW_CARD_DELAY
-
-    ) {
-
-      analyzing =
-      false;
-
-      return;
-
-    }
-
-
-    /*
-    ====================================
-    НАСТОЯЩАЯ НОВАЯ КАРТА
-    ====================================
-    */
-
-
-    cardPresent =
-    true;
-
-
-    analyzingNewCard =
-    true;
-
-
-    lastDetectionTime =
-    Date.now();
+    currentCard =
+      newCard;
 
 
     result.innerText =
-    "🔎 Карта найдена!\nПолучаю ответ...";
+      "🃏 " + newCard;
 
 
     /*
-    ====================================
-    ШАГ 2
-    ПОЛУЧАЕМ ПОЛНЫЙ ОТВЕТ
-    ====================================
+      Теперь следующая проверка
+      будет искать именно ДРУГУЮ карту.
     */
 
-
-    const analyzeResponse =
-    await fetch(
-
-      APPS_SCRIPT_URL,
-
-      {
-
-        method:
-        "POST",
-
-        headers: {
-
-          "Content-Type":
-          "text/plain;charset=utf-8"
-
-        },
-
-        body:
-        JSON.stringify({
-
-          action:
-          "analyze",
-
-          image:
-          image
-
-        })
-
-      }
-
-    );
-
-
-    const analyzeText =
-    await analyzeResponse.text();
-
-
-    let analyzeData;
-
-
-    try {
-
-      analyzeData =
-      JSON.parse(
-        analyzeText
-      );
-
-    } catch (error) {
-
-      console.log(
-        "Ошибка JSON анализа:",
-        analyzeText
-      );
-
-
-      cardPresent =
-      false;
-
-
-      analyzingNewCard =
-      false;
-
-
-      analyzing =
-      false;
-
-
-      return;
-
-    }
-
-
-    /*
-    ====================================
-    ПОКАЗЫВАЕМ ОТВЕТ
-    ====================================
-    */
-
-
-    if (
-      analyzeData.success
-    ) {
-
-
-      result.innerText =
-      "🃏 " +
-      analyzeData.result;
-
-
-      console.log(
-        "ОТВЕТ:",
-        analyzeData.result
-      );
-
-
-    } else {
-
-
-      result.innerText =
-      "Ошибка: " +
-      analyzeData.error;
-
-
-      /*
-      Если анализ не удался,
-      разрешаем попробовать
-      эту карту ещё раз.
-      */
-
-      cardPresent =
-      false;
-
-    }
-
-
-    analyzingNewCard =
-    false;
+    analyzing = false;
 
 
   } catch (error) {
 
-
     console.log(
       "Ошибка соединения:",
-      error
+      error.message
     );
 
-
-    /*
-    При ошибке разрешаем
-    повторную попытку.
-    */
-
-    cardPresent =
-    false;
-
-
-    analyzingNewCard =
-    false;
-
+    analyzing = false;
   }
-
-
-  analyzing =
-  false;
-
 }
 
 
-/*
-========================================
-АВТОЗАПУСК
-========================================
-*/
+/* =========================
+   АВТОЗАПУСК
+========================= */
 
 window.addEventListener(
-"load",
-function() {
+  "load",
+  function() {
 
-  startCamera();
+    startCamera();
 
-});
-
+  }
+);
 
 </script>
 
