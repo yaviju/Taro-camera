@@ -146,51 +146,29 @@ let scanTimer = null;
 
 /*
 ========================================
-СОСТОЯНИЕ РАСПОЗНАВАНИЯ
+СОСТОЯНИЕ
 ========================================
 */
 
-/*
-Последняя карта, которую мы уже показали.
-*/
-
-let currentCard = "";
-
 
 /*
-Флаг:
-карта сейчас считается находящейся
-в кадре.
+Карта сейчас находится в кадре.
 */
 
 let cardIsPresent = false;
 
 
 /*
-Сколько раз подряд Gemini должна
-подтвердить одну и ту же карту.
-
-Это защищает от случайных распознаваний.
+Эта переменная нужна, чтобы после
+обнаружения карты мы не запускали
+новое распознавание снова и снова.
 */
 
-let candidateCard = "";
-
-let candidateCount = 0;
+let waitingForNewCard = false;
 
 
 /*
-Сколько раз подряд должна появиться
-новая карта, чтобы мы её приняли.
-
-2 проверки подряд — достаточно быстро,
-но значительно стабильнее.
-*/
-
-const REQUIRED_CONFIRMATIONS = 2;
-
-
-/*
-URL ТВОЕГО APPS SCRIPT
+URL APPS SCRIPT
 */
 
 const APPS_SCRIPT_URL =
@@ -238,6 +216,16 @@ async function startCamera() {
   }
 
 
+  /*
+  При смене камеры начинаем
+  полностью новый цикл.
+  */
+
+  cardIsPresent = false;
+
+  waitingForNewCard = false;
+
+
   result.innerText =
     "📷 Запускаю камеру...";
 
@@ -271,20 +259,6 @@ async function startCamera() {
     video.srcObject = stream;
 
     await video.play();
-
-
-    /*
-    При смене камеры начинаем
-    с чистого состояния.
-    */
-
-    currentCard = "";
-
-    cardIsPresent = false;
-
-    candidateCard = "";
-
-    candidateCount = 0;
 
 
     result.innerText =
@@ -332,7 +306,7 @@ switchButton.addEventListener(
 
 /*
 ========================================
-АВТОМАТИЧЕСКОЕ СКАНИРОВАНИЕ
+АВТОСКАНИРОВАНИЕ
 ========================================
 */
 
@@ -359,6 +333,16 @@ function startAutoScan() {
         }
 
 
+        /*
+        Если карта уже найдена —
+        НЕ отправляем её снова.
+        */
+
+        if (waitingForNewCard) {
+          return;
+        }
+
+
         analyzeCurrentFrame();
 
       },
@@ -370,7 +354,7 @@ function startAutoScan() {
 
 /*
 ========================================
-АНАЛИЗ ТЕКУЩЕГО КАДРА
+АНАЛИЗ КАДРА
 ========================================
 */
 
@@ -412,12 +396,16 @@ async function analyzeCurrentFrame() {
 
 
   /*
-  Если карта уже была найдена,
-  не пишем постоянно
-  "Распознаю карту".
-
-  Оставляем предыдущий ответ.
+  Только когда действительно ищем
+  новую карту, показываем это сообщение.
   */
+
+  if (!cardIsPresent) {
+
+    result.innerText =
+      "🔎 Ищу карту...";
+
+  }
 
 
   try {
@@ -455,7 +443,7 @@ async function analyzeCurrentFrame() {
     } catch (error) {
 
       console.log(
-        "Сервер вернул:",
+        "Ответ сервера:",
         text
       );
 
@@ -478,60 +466,32 @@ async function analyzeCurrentFrame() {
     ) {
 
       /*
-      Очень важно:
+      Карты нет.
 
-      если карту убрали,
-      мы НЕ удаляем ответ.
-
-      Просто запоминаем,
-      что карты сейчас нет.
+      Главное:
+      НЕ стираем предыдущий ответ.
       */
 
       cardIsPresent = false;
 
-      candidateCard = "";
+      waitingForNewCard = false;
 
-      candidateCount = 0;
-
-
-      analyzing = false;
-
-      return;
-    }
-
-
-    /*
-    ====================================
-    GEMINI НАШЁЛ КАРТУ
-    ====================================
-    */
-
-    let detectedCard =
-      data.result.trim();
-
-
-    /*
-    ====================================
-    ЕСЛИ ЭТА ЖЕ КАРТА
-    ====================================
-    */
-
-    if (
-      detectedCard === currentCard
-    ) {
 
       /*
-      Карта всё ещё та же.
-
-      Ничего не меняем.
-      Ответ остаётся на экране.
+      Если предыдущего ответа нет,
+      показываем подсказку.
       */
 
-      cardIsPresent = true;
+      if (
+        !result.innerText ||
+        result.innerText ===
+          "🔎 Ищу карту..."
+      ) {
 
-      candidateCard = "";
+        result.innerText =
+          "📷 Положи карту в кадр.";
 
-      candidateCount = 0;
+      }
 
 
       analyzing = false;
@@ -542,42 +502,17 @@ async function analyzeCurrentFrame() {
 
     /*
     ====================================
-    НАЙДЕНА НОВАЯ КАРТА
+    КАРТА НАЙДЕНА
     ====================================
     */
 
 
     /*
-    Если это первая проверка
-    новой карты.
+    Если карта уже была найдена,
+    ничего больше не делаем.
     */
 
-    if (
-      candidateCard !== detectedCard
-    ) {
-
-      candidateCard =
-        detectedCard;
-
-      candidateCount = 1;
-
-    } else {
-
-      candidateCount++;
-
-    }
-
-
-    /*
-    Пока не подтвердили карту
-    два раза подряд —
-    ничего не показываем.
-    */
-
-    if (
-      candidateCount <
-      REQUIRED_CONFIRMATIONS
-    ) {
+    if (waitingForNewCard) {
 
       analyzing = false;
 
@@ -586,32 +521,27 @@ async function analyzeCurrentFrame() {
 
 
     /*
-    ====================================
-    НОВАЯ КАРТА ПОДТВЕРЖДЕНА
-    ====================================
-    */
+    Запоминаем:
 
-    currentCard =
-      detectedCard;
+    карта сейчас в кадре.
+    */
 
     cardIsPresent = true;
 
-    candidateCard = "";
-
-    candidateCount = 0;
+    waitingForNewCard = true;
 
 
     /*
-    Показываем новый ответ.
+    ПОКАЗЫВАЕМ ПОЛУЧЕННЫЙ ОТВЕТ
     */
 
     result.innerText =
-      "🃏 " + detectedCard;
+      "🃏 " + data.result;
 
 
     console.log(
-      "НОВАЯ КАРТА:",
-      detectedCard
+      "НОВАЯ КАРТА / НОВЫЙ ОТВЕТ:",
+      data.result
     );
 
 
@@ -621,6 +551,12 @@ async function analyzeCurrentFrame() {
       "Ошибка соединения:",
       error
     );
+
+
+    /*
+    Ошибку не выводим поверх
+    уже полученного ответа.
+    */
 
   }
 
