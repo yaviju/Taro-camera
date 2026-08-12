@@ -14,6 +14,10 @@
       text-align: center;
     }
 
+    h2 {
+      margin-top: 0;
+    }
+
     video {
       width: 100%;
       max-width: 600px;
@@ -27,6 +31,9 @@
       font-size: 18px;
       border: 0;
       border-radius: 10px;
+      background: white;
+      color: black;
+      cursor: pointer;
     }
 
     #result {
@@ -43,7 +50,7 @@
 
 <video id="video" autoplay playsinline muted></video>
 
-<
+<br>
 
 <button id="startButton">
   ВКЛЮЧИТЬ КАМЕРУ
@@ -66,6 +73,7 @@ let camera = "environment";
 
 let analyzing = false;
 let lastCardTime = 0;
+let scanTimer = null;
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -74,6 +82,7 @@ const result = document.getElementById("result");
 const startButton = document.getElementById("startButton");
 const switchButton = document.getElementById("switchButton");
 
+
 /* =========================
    ЗАПУСК КАМЕРЫ
 ========================= */
@@ -81,21 +90,38 @@ const switchButton = document.getElementById("switchButton");
 async function startCamera() {
 
   if (stream) {
-    stream.getTracks().forEach(track => track.stop());
+    stream.getTracks().forEach(function(track) {
+      track.stop();
+    });
+
+    stream = null;
   }
+
+  if (scanTimer) {
+    clearInterval(scanTimer);
+    scanTimer = null;
+  }
+
+  result.innerText = "📷 Запускаю камеру...";
 
   try {
 
     stream = await navigator.mediaDevices.getUserMedia({
+
       video: {
-        facingMode: camera,
+        facingMode: {
+          ideal: camera
+        },
+
         width: {
           ideal: 1280
         },
+
         height: {
           ideal: 720
         }
       },
+
       audio: false
     });
 
@@ -109,10 +135,6 @@ async function startCamera() {
     result.innerText =
       "📷 Камера включена.\nПоложи карту в кадр.";
 
-    /*
-      Начинаем автоматическую проверку
-    */
-
     startAutoScan();
 
   } catch (error) {
@@ -122,17 +144,23 @@ async function startCamera() {
       error.name +
       ": " +
       error.message;
+
+    console.log(error);
   }
 }
 
+
 /* =========================
-   КНОПКА СТАРТА
+   КНОПКА ВКЛЮЧЕНИЯ
 ========================= */
 
 startButton.addEventListener(
   "click",
-  startCamera
+  function() {
+    startCamera();
+  }
 );
+
 
 /* =========================
    СМЕНА КАМЕРЫ
@@ -152,56 +180,53 @@ switchButton.addEventListener(
   }
 );
 
+
 /* =========================
    АВТОМАТИЧЕСКОЕ СКАНИРОВАНИЕ
 ========================= */
 
 function startAutoScan() {
 
-  setInterval(async function() {
+  if (scanTimer) {
+    clearInterval(scanTimer);
+  }
 
-    if (!video.videoWidth) {
-      return;
-    }
+  scanTimer = setInterval(
+    function() {
 
-    /*
-      Если сейчас уже идёт распознавание —
-      ничего нового не делаем.
-    */
+      if (!video.videoWidth) {
+        return;
+      }
 
-    if (analyzing) {
-      return;
-    }
+      if (analyzing) {
+        return;
+      }
 
-    /*
-      Небольшая защита от повторного
-      распознавания одной и той же карты.
-    */
+      if (
+        Date.now() - lastCardTime < 4000
+      ) {
+        return;
+      }
 
-    if (
-      Date.now() - lastCardTime < 4000
-    ) {
-      return;
-    }
+      analyzeCurrentFrame();
 
-    /*
-      Пока просто делаем снимок кадра.
-      Gemini на сервере определит,
-      есть ли там карта.
-    */
-
-    await analyzeCurrentFrame();
-
-  }, 1200);
+    },
+    1500
+  );
 }
 
+
 /* =========================
-   АНАЛИЗ КАДРА
+   АНАЛИЗ ТЕКУЩЕГО КАДРА
 ========================= */
 
 async function analyzeCurrentFrame() {
 
   if (analyzing) {
+    return;
+  }
+
+  if (!video.videoWidth) {
     return;
   }
 
@@ -227,7 +252,7 @@ async function analyzeCurrentFrame() {
     );
 
   result.innerText =
-    "🔎 Смотрю на карту...";
+    "🔎 Проверяю кадр...";
 
   try {
 
@@ -267,46 +292,46 @@ async function analyzeCurrentFrame() {
       return;
     }
 
-    if (data.success) {
 
-      /*
-        Gemini нашёл карту
-      */
+    /* =========================
+       КАРТА НАЙДЕНА
+    ========================= */
 
-      if (
-        data.result &&
-        data.result !== "NO_CARD"
-      ) {
+    if (
+      data.success &&
+      data.result &&
+      data.result !== "NO_CARD"
+    ) {
 
-        lastCardTime = Date.now();
+      lastCardTime = Date.now();
 
-        result.innerText =
-          "🃏 КАРТА:\n\n" +
-          data.result;
+      result.innerText =
+        "🃏 КАРТА:\n\n" +
+        data.result;
 
-        /*
-          Ждём 4 секунды,
-          чтобы одна карта не
-          распознавалась много раз.
-        */
+      setTimeout(
+        function() {
 
-        setTimeout(function() {
+          if (
+            Date.now() - lastCardTime >= 4000
+          ) {
 
-          if (!analyzing) {
             result.innerText =
               "📷 Готов к следующей карте.";
+
           }
 
-        }, 4000);
+        },
+        4000
+      );
 
-      }
+    }
 
-    } else {
+    /* =========================
+       КАРТЫ НЕТ
+    ========================= */
 
-      /*
-        Если карты нет,
-        ничего страшного.
-      */
+    else {
 
       result.innerText =
         "📷 Жду карту...";
@@ -327,4 +352,4 @@ async function analyzeCurrentFrame() {
 </script>
 
 </body>
-</html>.string
+</html>
