@@ -5,30 +5,55 @@
   <title>Taro AI</title>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
     body {
       margin: 0;
-      padding: 20px;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
       background: #111;
       color: white;
       font-family: Arial, sans-serif;
+    }
+
+    body {
       text-align: center;
+      padding: 10px;
     }
 
     h2 {
-      margin-top: 0;
+      margin: 5px 0 10px 0;
+      font-size: 22px;
+    }
+
+    #cameraBox {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
     }
 
     video {
+      display: block;
       width: 100%;
-      max-width: 600px;
+      height: auto;
+      max-height: 55vh;
+      object-fit: cover;
       border-radius: 12px;
       background: black;
     }
 
+    #controls {
+      width: 100%;
+      margin-top: 10px;
+    }
+
     button {
-      margin: 10px 5px;
-      padding: 16px 20px;
-      font-size: 18px;
+      padding: 14px 18px;
+      font-size: 17px;
       border: 0;
       border-radius: 10px;
       background: white;
@@ -37,43 +62,98 @@
     }
 
     #result {
-      margin-top: 20px;
-      font-size: 20px;
+      width: 100%;
+      max-width: 600px;
+      margin: 12px auto 0 auto;
+      padding: 12px;
+      min-height: 60px;
+      font-size: 18px;
+      line-height: 1.4;
       white-space: pre-wrap;
+      background: #1b1b1b;
+      border-radius: 10px;
+    }
+
+    @media (max-height: 700px) {
+
+      h2 {
+        font-size: 19px;
+        margin: 3px 0 6px 0;
+      }
+
+      video {
+        max-height: 48vh;
+      }
+
+      button {
+        padding: 11px 16px;
+        font-size: 16px;
+      }
+
+      #result {
+        margin-top: 8px;
+        padding: 8px;
+        font-size: 16px;
+        min-height: 50px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-<h2>🃏 Taro AI</h2>
+  <div id="cameraBox">
 
-<video id="video" autoplay playsinline muted></video>
+    <h2>🃏 Taro AI</h2>
 
-<br>
+    <video
+      id="video"
+      autoplay
+      playsinline
+      muted>
+    </video>
 
-<button id="switchButton">
-  🔄 СМЕНИТЬ КАМЕРУ
-</button>
+    <div id="controls">
 
-<canvas id="canvas" style="display:none;"></canvas>
+      <button id="switchButton">
+        🔄 СМЕНИТЬ КАМЕРУ
+      </button>
 
-<div id="result">
-  📷 Запускаю камеру...
-</div>
+    </div>
+
+    <div id="result">
+      📷 Запускаю камеру...
+    </div>
+
+  </div>
+
+  <canvas
+    id="canvas"
+    style="display:none;">
+  </canvas>
+
 
 <script>
 
 let stream = null;
+
 let camera = "environment";
 
 let analyzing = false;
+
 let lastCardTime = 0;
+
 let scanTimer = null;
 
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const result = document.getElementById("result");
+
+const video =
+  document.getElementById("video");
+
+const canvas =
+  document.getElementById("canvas");
+
+const result =
+  document.getElementById("result");
 
 const switchButton =
   document.getElementById("switchButton");
@@ -96,15 +176,19 @@ async function startCamera() {
     stream = null;
   }
 
+
   if (scanTimer) {
 
     clearInterval(scanTimer);
+
     scanTimer = null;
 
   }
 
+
   result.innerText =
     "📷 Запускаю камеру...";
+
 
   try {
 
@@ -133,6 +217,7 @@ async function startCamera() {
 
 
     video.srcObject = stream;
+
 
     await video.play();
 
@@ -179,7 +264,7 @@ switchButton.addEventListener(
 
 
 /* =========================
-   АВТОМАТИЧЕСКОЕ СКАНИРОВАНИЕ
+   АВТОСКАНИРОВАНИЕ
 ========================= */
 
 function startAutoScan() {
@@ -190,6 +275,7 @@ function startAutoScan() {
 
   }
 
+
   scanTimer =
     setInterval(
       function() {
@@ -198,15 +284,18 @@ function startAutoScan() {
           return;
         }
 
+
         if (analyzing) {
           return;
         }
+
 
         if (
           Date.now() - lastCardTime < 4000
         ) {
           return;
         }
+
 
         analyzeCurrentFrame();
 
@@ -227,9 +316,11 @@ async function analyzeCurrentFrame() {
     return;
   }
 
+
   if (!video.videoWidth) {
     return;
   }
+
 
   analyzing = true;
 
@@ -316,10 +407,6 @@ async function analyzeCurrentFrame() {
     }
 
 
-    /* =========================
-       КАРТА НАЙДЕНА
-    ========================= */
-
     if (
       data.success &&
       data.result &&
@@ -351,14 +438,7 @@ async function analyzeCurrentFrame() {
         4000
       );
 
-    }
-
-
-    /* =========================
-       КАРТЫ НЕТ
-    ========================= */
-
-    else {
+    } else {
 
       result.innerText =
         "📷 Жду карту...";
@@ -381,7 +461,7 @@ async function analyzeCurrentFrame() {
 
 
 /* =========================
-   АВТОЗАПУСК ПРИ ОТКРЫТИИ
+   АВТОЗАПУСК
 ========================= */
 
 window.addEventListener(
