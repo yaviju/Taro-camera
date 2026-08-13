@@ -90,6 +90,51 @@
         font-size: 16px;
       }
 
+      #questionBox {
+  width: 100%;
+  max-width: 600px;
+  margin: 12px auto;
+  padding: 12px;
+  background: #1b1b1b;
+  border-radius: 10px;
+}
+
+#questionTitle {
+  font-size: 14px;
+  color: #aaa;
+  margin-bottom: 8px;
+}
+
+#questionText {
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1.35;
+}
+
+#questionAuthor {
+  margin-top: 6px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+#questionButtons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#questionButtons button {
+  flex: 1;
+  padding: 11px 8px;
+  font-size: 14px;
+}
+
+#queueInfo {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #888;
+}
+      
       #result {
         margin-top: 8px;
         padding: 8px;
@@ -113,6 +158,36 @@
       muted>
     </video>
 
+    <div id="questionBox">
+
+  <div id="questionTitle">
+    💬 ТЕКУЩИЙ ВОПРОС
+  </div>
+
+  <div id="questionText">
+    Вопросов пока нет
+  </div>
+
+  <div id="questionAuthor"></div>
+
+  <div id="questionButtons">
+
+    <button id="backButton">
+      ◀ НАЗАД
+    </button>
+
+    <button id="skipButton">
+      ⏭ ПРОПУСТИТЬ
+    </button>
+
+  </div>
+
+  <div id="queueInfo">
+    Очередь: 0
+  </div>
+
+   </div>
+    
     <div id="controls">
 
       <button id="switchButton">
@@ -173,7 +248,170 @@ const result =
 const switchButton =
   document.getElementById("switchButton");
 
+  const API_URL =
+  "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec";
 
+
+const questionText =
+  document.getElementById("questionText");
+
+const questionAuthor =
+  document.getElementById("questionAuthor");
+
+const queueInfo =
+  document.getElementById("queueInfo");
+
+const backButton =
+  document.getElementById("backButton");
+
+const skipButton =
+  document.getElementById("skipButton");
+
+async function loadQuestion() {
+
+  try {
+
+    const response =
+      await fetch(API_URL, {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
+
+        body: JSON.stringify({
+          action: "get"
+        })
+
+      });
+
+
+    const data =
+      await response.json();
+
+
+    if (
+      data.success &&
+      data.questionData
+    ) {
+
+      updateQuestion(
+        data.questionData
+      );
+
+    }
+
+  } catch (error) {
+
+    console.log(
+      "Ошибка загрузки вопроса:",
+      error
+    );
+
+  }
+
+}
+
+
+function updateQuestion(data) {
+
+  if (!data.current) {
+
+    questionText.innerText =
+      "Вопросов пока нет";
+
+    questionAuthor.innerText =
+      "";
+
+  } else {
+
+    questionText.innerText =
+      data.current.question;
+
+    questionAuthor.innerText =
+      "👤 " +
+      data.current.author;
+
+  }
+
+
+  queueInfo.innerText =
+    "Очередь: " +
+    data.queueLength;
+
+}
+
+
+async function questionAction(action) {
+
+  try {
+
+    const response =
+      await fetch(API_URL, {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "text/plain;charset=utf-8"
+        },
+
+        body: JSON.stringify({
+          action: action
+        })
+
+      });
+
+
+    const data =
+      await response.json();
+
+
+    if (
+      data.success &&
+      data.questionData
+    ) {
+
+      updateQuestion(
+        data.questionData
+      );
+
+    }
+
+  } catch (error) {
+
+    console.log(
+      "Ошибка:",
+      error
+    );
+
+  }
+
+}
+
+
+backButton.addEventListener(
+  "click",
+  function() {
+
+    questionAction("back");
+
+  }
+);
+
+
+skipButton.addEventListener(
+  "click",
+  function() {
+
+    questionAction("skip");
+
+  }
+);
+
+  
 /* =========================
    ЗАПУСК КАМЕРЫ
 ========================= */
@@ -522,6 +760,13 @@ window.addEventListener(
   function() {
 
     startCamera();
+
+    loadQuestion();
+
+    setInterval(
+      loadQuestion,
+      3000
+    );
 
   }
 );
