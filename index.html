@@ -146,6 +146,21 @@ let lastCardTime = 0;
 let scanTimer = null;
 
 
+/* =========================
+   НАСТРОЙКИ
+========================= */
+
+const SCAN_INTERVAL = 1500; // проверка каждые 1.5 сек
+
+const CARD_DISPLAY_TIME = 6000; // карта держится 6 секунд
+
+const IMAGE_QUALITY = 0.8;
+
+
+/* =========================
+   ЭЛЕМЕНТЫ
+========================= */
+
 const video =
   document.getElementById("video");
 
@@ -182,7 +197,6 @@ async function startCamera() {
     clearInterval(scanTimer);
 
     scanTimer = null;
-
   }
 
 
@@ -290,8 +304,13 @@ function startAutoScan() {
         }
 
 
+        /*
+         После найденной карты
+         ждём 6 секунд.
+        */
+
         if (
-          Date.now() - lastCardTime < 4000
+          Date.now() - lastCardTime < CARD_DISPLAY_TIME
         ) {
           return;
         }
@@ -300,7 +319,7 @@ function startAutoScan() {
         analyzeCurrentFrame();
 
       },
-      1500
+      SCAN_INTERVAL
     );
 
 }
@@ -347,13 +366,13 @@ async function analyzeCurrentFrame() {
 
   const image =
     canvas.toDataURL(
-  "image/jpeg",
-  0.8
-  );
+      "image/jpeg",
+      IMAGE_QUALITY
+    );
 
 
   result.innerText =
-    "🔎 Проверяю кадр...";
+    "🔎 Ищу карту...";
 
 
   try {
@@ -396,9 +415,13 @@ async function analyzeCurrentFrame() {
 
     } catch (error) {
 
+      console.log(
+        "Ответ сервера:",
+        text
+      );
+
       result.innerText =
-        "Ответ сервера:\n" +
-        text;
+        "Ошибка ответа сервера";
 
       analyzing = false;
 
@@ -406,6 +429,10 @@ async function analyzeCurrentFrame() {
 
     }
 
+
+    /* =========================
+       КАРТА НАЙДЕНА
+    ========================= */
 
     if (
       data.success &&
@@ -422,35 +449,61 @@ async function analyzeCurrentFrame() {
         data.result;
 
 
+      /*
+       Через 6 секунд
+       возвращаем поиск.
+      */
+
       setTimeout(
         function() {
 
           if (
-            Date.now() - lastCardTime >= 4000
+            Date.now() - lastCardTime >= CARD_DISPLAY_TIME
           ) {
 
             result.innerText =
-              "📷 Готов к следующей карте.";
+              "📷 Жду следующую карту...";
 
           }
 
         },
-        4000
+        CARD_DISPLAY_TIME
       );
 
-    } else {
 
-      result.innerText =
-        "📷 Жду карту...";
+    }
+
+
+    /* =========================
+       КАРТЫ НЕТ
+    ========================= */
+
+    else {
+
+      /*
+       Не меняем текст слишком часто.
+       Просто продолжаем поиск.
+      */
+
+      if (
+        Date.now() - lastCardTime >= CARD_DISPLAY_TIME
+      ) {
+
+        result.innerText =
+          "📷 Жду карту...";
+
+      }
 
     }
 
 
   } catch (error) {
 
+    console.log(error);
+
     result.innerText =
-      "Ошибка соединения:\n" +
-      error.message;
+      "Ошибка соединения";
+
 
   }
 
