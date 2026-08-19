@@ -289,13 +289,15 @@
 
     <div id="controls">
 
-      <button id="switchButton">
-        🔄 СМЕНИТЬ КАМЕРУ
-      </button>
+  <button id="captureButton">
+    📸 ОПРЕДЕЛИТЬ КАРТУ
+  </button>
 
-    </div>
+  <button id="switchButton">
+    🔄 СМЕНИТЬ КАМЕРУ
+  </button>
 
-  </div>
+</div>
 
 
   <canvas
@@ -343,6 +345,8 @@ const result =
 
 const switchButton =
   document.getElementById("switchButton");
+const captureButton =
+  document.getElementById("captureButton");
 
 const API_URL =
   "https://script.google.com/macros/s/AKfycbxx67tUY2nCNIRrZJfe0ECTO-1bBaDq5rm7CSre5LeteERTp-b48kR5QAETgaB6ozfn/exec";
@@ -577,13 +581,9 @@ async function startCamera() {
 
 
     result.innerText =
-      "📷 Положи карту в кадр.";
+      "📷 Наведи камеру на карту и нажми кнопку.";
 
-
-    startAutoScan();
-
-
-  } catch (error) {
+    } catch (error) {
 
     result.innerText =
       "Ошибка камеры:\n" +
@@ -615,52 +615,6 @@ switchButton.addEventListener(
 
   }
 );
-
-
-/* =========================
-   АВТОСКАНИРОВАНИЕ
-========================= */
-
-function startAutoScan() {
-
-  if (scanTimer) {
-
-    clearInterval(scanTimer);
-
-  }
-
-
-  scanTimer =
-    setInterval(
-      function() {
-
-        if (!video.videoWidth) {
-          return;
-        }
-
-
-        if (analyzing) {
-          return;
-        }
-
-
-        if (
-          Date.now() - lastCardTime <
-          CARD_DISPLAY_TIME
-        ) {
-
-          return;
-
-        }
-
-
-        analyzeCurrentFrame();
-
-      },
-      SCAN_INTERVAL * 1000
-    );
-
-}
 
 
 /* =========================
@@ -904,6 +858,18 @@ async function analyzeCurrentFrame() {
 
 }
 
+  captureButton.addEventListener(
+  "click",
+  function() {
+
+    if (analyzing) {
+      return;
+    }
+
+    analyzeCurrentFrame();
+
+  }
+);
 
 /* =========================
    АВТОЗАПУСК
